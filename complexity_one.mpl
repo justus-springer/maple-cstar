@@ -16,7 +16,7 @@ module PFormat()
         Object(PFormat, _passed);
     end;
 
-    export ModuleCopy :: static := proc(self :: PFormat, proto :: PFormat, 
+    export ModuleCopy :: static := proc(self :: PFormat, proto :: PFormat,
         ns_ :: list(integer), m_ :: integer, s_ :: integer, $)
         local i;
         for i in ns_ do
@@ -32,17 +32,17 @@ module PFormat()
     end;
 
     export ModulePrint :: static := proc(self :: PFormat)
-        nprintf(cat("(ns = ", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")"));
+        nprintf(cat("(ns = ", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")")); # "
     end;
 
 end module:
 
 (*
 Checks whether a given cone `cone` is big with respect to a given PFormat.
-Here, a cone is called big if for every i = 0,...,r-1, we have {N, ..., N+ns[i+1]} ∩ cone ≠ {}, 
+Here, a cone is called big if for every i = 0,...,r-1, we have {N, ..., N+ns[i+1]} ∩ cone ≠ {},
 where N = ns[1] + ... + ns[i]
 *)
-isBigCone := proc(format :: PFormat, cone :: set(integer)) 
+isBigCone := proc(format :: PFormat, cone :: set(integer))
     local r, n, ns, N, i, k:
     r := format:-r;
     n := format:-n;
@@ -62,7 +62,7 @@ Here, a cone is called a leaf cone, if there exists an i = 0,...,r-1 such that:
 xcone ⊆ {N+1, ..., N+ns[i+1]} ∪ {n+1,...,n+m},
 where N = ns[1] + ... + ns[i]
 *)
-isLeafCone := proc(format :: PFormat, cone :: set(integer)) 
+isLeafCone := proc(format :: PFormat, cone :: set(integer))
     local r, n, ns, m, N, i, k:
     r := format:-r;
     n := format:-n;
@@ -70,7 +70,7 @@ isLeafCone := proc(format :: PFormat, cone :: set(integer))
     m := format:-m;
     for i from 0 to r - 1 do
         N := add(ns[1..i]);
-        if cone subset ({seq(N + k, k = n+1 .. n+ns[i+1])} union {seq(n + k, k = 1 .. m)}) then
+        if cone subset ({seq(N + k, k = 1 .. ns[i+1])} union {seq(n + k, k = 1 .. m)}) then
             return true:
         end if:
     end do:
@@ -81,7 +81,7 @@ end proc:
 Checks whether a given `cone` is an X-cone with respect to a given P-matrix format `nL, m`.
 Here, a cone is called an X-cone, if it is either a leaf cone or a big cone.
 *)
-isXCone := proc(format :: PFormat, cone :: set(integer)) 
+isXCone := proc(format :: PFormat, cone :: set(integer))
     isBigCone(format, cone) or isLeafCone(format, cone):
 end:
 
@@ -120,11 +120,11 @@ module PMatrix()
         # Input method (1)
         # format, ls, d
         if type(_passed[3], 'PFormat') then
-            if _npassed < 5 then 
+            if _npassed < 5 then
                 error "Not enough arguments. Expected input: PFormat, list(list(integer)), Matrix, Matrix.";
             end if:
 
-            if not type(_passed[3], 'PFormat') then 
+            if not type(_passed[3], 'PFormat') then
                 error "Expected 2nd argument to be of type: PFormat.";
             end if;
             setFormat(self, _passed[3]);
@@ -147,7 +147,7 @@ module PMatrix()
             end do:
 
             # Construct the P-matrix from the given data
-            rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]), 
+            rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
                          seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]) + self:-m)], i = 2 .. self:-r),
                      seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
             self:-mat := Matrix(rows);
@@ -155,7 +155,7 @@ module PMatrix()
         else
             error "Wrong arguments.";
         end if;
-    
+
     end;
 
     export getQ :: static := proc(self :: PMatrix)
@@ -195,7 +195,7 @@ module PMatrix()
         if not type(self:-anitcanCoefficients, undefined) then
             self:-anitcanCoefficients;
         else
-            self:-anitcanCoefficients := 
+            self:-anitcanCoefficients :=
                 [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]
         end if;
     end;
@@ -244,12 +244,13 @@ module TVarOne()
     export P, Sigma;
 
     local SigmaX := undefined;
+    local SigmaXMax := undefined;
 
     export ModuleApply :: static := proc()
         Object(TVarOne, _passed);
     end;
 
-    export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, 
+    export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne,
         P :: PMatrix, Sigma :: list(set(integer)))
         self:-P := P;
         self:-Sigma := Sigma;
@@ -261,6 +262,21 @@ module TVarOne()
         else
             select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
         end if;
+    end;
+
+    export isMaximalXCone :: static := proc(self :: TVarOne, cone :: set(integer))
+        local SigmaX, cone_;
+        SigmaX := getSigmaX(self);
+        for cone_ in SigmaX do
+            if cone subset cone_ and cone <> cone_ then
+                return false;
+            end if;
+        end do;
+        return true;
+    end;
+
+    export getSigmaXMax :: static := proc(self :: TVarOne)
+        select(cone -> isMaximalXCone(self, cone), getSigmaX(self));
     end;
 
     export ModulePrint :: static := proc(self :: TVarOne)
