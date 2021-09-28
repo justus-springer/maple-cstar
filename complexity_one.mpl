@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, isBigCone, isLeafCone, isXCone, isGorensteinForXCone, TVarOne;
+export PFormat, PMatrix, TVarOne;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage;
@@ -31,59 +31,53 @@ module PFormat()
         self:-s := s_;
     end;
 
+    (*
+    Checks whether a given cone `cone` is big with respect to a given PFormat.
+    Here, a cone is called big if for every i = 0,...,r-1, we have
+    {N, ..., N+ns[i+1]} ∩ cone ≠ {}, where N = ns[1] + ... + ns[i].
+    *)
+    export isBigCone :: static := proc(self :: PFormat, cone :: set(integer))
+        local N, i, k:
+        for i from 0 to self:-r - 1 do
+            N := add(self:-ns[1..i]);
+            if evalb({seq(N + k, k = 1 .. self:-ns[i+1])} intersect cone = { }) then
+                return false:
+            end if:
+        end do:
+        return true:
+    end proc:
+
+    (*
+    Checks whether a given `cone` is big with respect to a given PFormat.
+    Here, a cone is called a leaf cone, if there exists an i = 0,...,r-1 such that:
+    xcone ⊆ {N+1, ..., N+ns[i+1]} ∪ {n+1,...,n+m},
+    where N = ns[1] + ... + ns[i]
+    *)
+    export isLeafCone :: static := proc(self :: PFormat, cone :: set(integer))
+        local N, i, k:
+        for i from 0 to self:-r - 1 do
+            N := add(self:-ns[1..i]);
+            if cone subset ({seq(N + k, k = 1 .. self:-ns[i+1])} union
+                {seq(self:-n + k, k = 1 .. self:-m)}) then
+                return true:
+            end if:
+        end do:
+        return false:
+    end proc:
+
+    (*
+    Checks whether a given `cone` is an X-cone with respect to a given P-matrix format `nL, m`.
+    Here, a cone is called an X-cone, if it is either a leaf cone or a big cone.
+    *)
+    export isXCone :: static := proc(self :: PFormat, cone :: set(integer))
+        isBigCone(self, cone) or isLeafCone(self, cone):
+    end:
+
     export ModulePrint :: static := proc(self :: PFormat)
         nprintf(cat("(ns = ", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")")); # "
     end;
 
 end module:
-
-(*
-Checks whether a given cone `cone` is big with respect to a given PFormat.
-Here, a cone is called big if for every i = 0,...,r-1, we have {N, ..., N+ns[i+1]} ∩ cone ≠ {},
-where N = ns[1] + ... + ns[i]
-*)
-isBigCone := proc(format :: PFormat, cone :: set(integer))
-    local r, n, ns, N, i, k:
-    r := format:-r;
-    n := format:-n;
-    ns := format:-ns;
-    for i from 0 to r - 1 do
-        N := add(ns[1..i]);
-        if evalb({seq(N + k, k = 1 .. ns[i+1])} intersect cone = { }) then
-            return false:
-        end if:
-    end do:
-    return true:
-end proc:
-
-(*
-Checks whether a given `cone` is big with respect to a given PFormat.
-Here, a cone is called a leaf cone, if there exists an i = 0,...,r-1 such that:
-xcone ⊆ {N+1, ..., N+ns[i+1]} ∪ {n+1,...,n+m},
-where N = ns[1] + ... + ns[i]
-*)
-isLeafCone := proc(format :: PFormat, cone :: set(integer))
-    local r, n, ns, m, N, i, k:
-    r := format:-r;
-    n := format:-n;
-    ns := format:-ns;
-    m := format:-m;
-    for i from 0 to r - 1 do
-        N := add(ns[1..i]);
-        if cone subset ({seq(N + k, k = 1 .. ns[i+1])} union {seq(n + k, k = 1 .. m)}) then
-            return true:
-        end if:
-    end do:
-    return false:
-end proc:
-
-(*
-Checks whether a given `cone` is an X-cone with respect to a given P-matrix format `nL, m`.
-Here, a cone is called an X-cone, if it is either a leaf cone or a big cone.
-*)
-isXCone := proc(format :: PFormat, cone :: set(integer))
-    isBigCone(format, cone) or isLeafCone(format, cone):
-end:
 
 module PMatrix()
     option object;
@@ -211,6 +205,21 @@ module PMatrix()
         end if;
     end;
 
+    (*
+    Checks whether the variety of a given PMatrix satisfies the Gorenstein condition
+    with respect to a given X-cone. The Gorenstein condition is satisfied if
+    the system of equations {<u,v_i> = a_i, i in cone} has an integer solution
+    vector u. Here, v_i is the ith column of P and the a_i are the coefficents of the
+    anticanonical class.
+    *)
+    export isGorensteinForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
+      local as, u, us, i, j, sol;
+      as := getAnticanCoefficients(P);
+      us := [seq(u[i], i = 1 .. RowDimension(P:-mat))];
+      sol := isolve({seq(DotProduct(us, Column(P:-mat, j)) = as[j], j in cone)});
+      return evalb(sol <> NULL);
+    end;
+
     export ModulePrint :: static := proc(self :: PMatrix)
         ## TODO: Make this work as expected.
         print(self:-mat);
@@ -228,15 +237,6 @@ module PMatrix()
     end;
 
 end module:
-
-(*
-isGorensteinForXCone := proc(P :: PMatrix, cone :: set(integer))
-    local as, u, i, j;
-    as := getAnticanCoefficients(P);
-    us := [seq(u[i], i = 1 .. nops(cone))];
-    isolve({seq(DotProduct(us, Column(P:-mat, j)) = as[j], j in cone)});
-end;
-*)
 
 module TVarOne()
     option object;
@@ -277,6 +277,10 @@ module TVarOne()
 
     export getSigmaXMax :: static := proc(self :: TVarOne)
         select(cone -> isMaximalXCone(self, cone), getSigmaX(self));
+    end;
+
+    export isGorenstein :: static := proc(self :: TVarOne)
+      andmap(cone -> isGorensteinForXCone(self:-P, cone), getSigmaXMax(self));
     end;
 
     export ModulePrint :: static := proc(self :: TVarOne)
