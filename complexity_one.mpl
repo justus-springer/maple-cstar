@@ -74,7 +74,7 @@ module PFormat()
     end:
 
     export ModulePrint :: static := proc(self :: PFormat)
-        nprintf(cat("(ns = ", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")")); # "
+        nprintf(cat("PFormat(", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")"));
     end;
 
 end module:
@@ -213,17 +213,24 @@ module PMatrix()
     anticanonical class.
     *)
     export isGorensteinForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-      local as, u, us, i, j, sol;
-      as := getAnticanCoefficients(P);
-      us := [seq(u[i], i = 1 .. RowDimension(P:-mat))];
-      sol := isolve({seq(DotProduct(us, Column(P:-mat, j)) = as[j], j in cone)});
-      return evalb(sol <> NULL);
+        local as, u, us, i, j, sol;
+        as := getAnticanCoefficients(P);
+        us := [seq(u[i], i = 1 .. RowDimension(P:-mat))];
+        sol := isolve({seq(DotProduct(us, Column(P:-mat, j)) = as[j], j in cone)});
+        return evalb(sol <> NULL);
     end;
 
     export ModulePrint :: static := proc(self :: PMatrix)
-        ## TODO: Make this work as expected.
-        print(self:-mat);
-        print(self:-format);
+        nprintf(cat("PMatrix(", self:-lss, ", m = ", self:-m, ", s = ", self:-s, ")"));
+    end;
+
+    export PMatrixInfo :: static := proc(self :: PMatrix)
+        local P, Q, picardNumber, anticanClass;
+        print(P = self:-mat);
+        nprintf(cat("Format: ", self:-ns, ", m = ", self:-m, ", s = ", self:-s)); #"
+        print(Q = getQ(self));
+        print(picardNumber = getPicardNumber(self));
+        print(anticanClass = getAnticanClass(self));
     end;
 
     export convert :: static := proc(self :: PMatrix, toType, $)
@@ -243,8 +250,8 @@ module TVarOne()
 
     export P, Sigma;
 
-    local SigmaX := undefined;
-    local SigmaXMax := undefined;
+    local XCones := undefined;
+    local maximalXCones := undefined;
 
     export ModuleApply :: static := proc()
         Object(TVarOne, _passed);
@@ -256,18 +263,18 @@ module TVarOne()
         self:-Sigma := Sigma;
     end;
 
-    export getSigmaX :: static := proc(self :: TVarOne)
-        if not type(self:-SigmaX, undefined) then
-            self:-SigmaX;
+    export getXCones :: static := proc(self :: TVarOne)
+        if not type(self:-XCones, undefined) then
+            self:-XCones;
         else
             select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
         end if;
     end;
 
     export isMaximalXCone :: static := proc(self :: TVarOne, cone :: set(integer))
-        local SigmaX, cone_;
-        SigmaX := getSigmaX(self);
-        for cone_ in SigmaX do
+        local XCones, cone_;
+        XCones := getXCones(self);
+        for cone_ in XCones do
             if cone subset cone_ and cone <> cone_ then
                 return false;
             end if;
@@ -275,18 +282,25 @@ module TVarOne()
         return true;
     end;
 
-    export getSigmaXMax :: static := proc(self :: TVarOne)
-        select(cone -> isMaximalXCone(self, cone), getSigmaX(self));
+    export getMaximalXCones :: static := proc(self :: TVarOne)
+        select(cone -> isMaximalXCone(self, cone), getXCones(self));
     end;
 
     export isGorenstein :: static := proc(self :: TVarOne)
-      andmap(cone -> isGorensteinForXCone(self:-P, cone), getSigmaXMax(self));
+      andmap(cone -> isGorensteinForXCone(self:-P, cone), getMaximalXCones(self));
     end;
 
     export ModulePrint :: static := proc(self :: TVarOne)
-        ## TODO: Make this work as expected.
-        print(self:-P);
-        print(self:-Sigma);
+        nprintf(cat("TVarOne(dim = ", self:-P:-s + 1,
+          ", picardNum = ", getPicardNumber(self:-P),
+          ", w = ", convert(getAnticanClass(self:-P), list), ")")); # "
+    end;
+
+    export TVarOneInfo :: static := proc(self :: TVarOne)
+        local maximalXCones, isGorenstein;
+        PMatrixInfo(self:-P);
+        print(maximalXCones = getMaximalXCones(self));
+        print(isGorenstein = :-isGorenstein(self));
     end;
 
 end module:
