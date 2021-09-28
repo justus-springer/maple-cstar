@@ -21,3 +21,13 @@ Test(isBigCone(f1, {3,4,5}), false, quiet, label = "isBigCone-11");
 Test(isBigCone(f2, {4,5,6,7,8,9,10}), false, quiet, label = "isBigCone-12");
 Test(isBigCone(f2, {1,3,6,8}), false, quiet, label = "isBigCone-13");
 Test(isBigCone(f2, {2,5,6,9}), false, quiet, label = "isBigCone-14");
+
+Test(isLeafCone(f1, {1,2,5}), true, quiet, label = "isLeafCone-1");
+Test(isLeafCone(f1, {3,5}), true, quiet, label = "isLeafCone-2");
+Test(isLeafCone(f1, {3,4}), false, quiet, label = "isLeafCone-3");
+Test(isLeafCone(f1, {1,3,5}), false, quiet, label = "isLeafCone-4");
+
+Test(isLeafCone(f2, {1,3,9,10}), true, quiet, label = "isLeafCone-5");
+Test(isLeafCone(f2, {8,9}), true, quiet, label = "isLeafCone-6");
+Test(isLeafCone(f2, {1,4,9,10}), false, quiet, label = "isLeafCone-7");
+Test(isLeafCone(f2, {7,8,9,10}), false, quiet, label = "isLeafCone-8");
