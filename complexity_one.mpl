@@ -17,18 +17,21 @@ module PFormat()
     end;
 
     export ModuleCopy :: static := proc(self :: PFormat, proto :: PFormat,
-        ns_ :: list(integer), m_ :: integer, s_ :: integer, $)
+        ns :: list(integer), m :: integer, s :: integer, $)
         local i;
-        for i in ns_ do
+        if nops(ns) < 2 then
+            error "r = nops(ns) must be at least 2."
+        end if;
+        for i in ns do
             if i < 1 then error "each element of ns must be at least 1." end if:
         end do:
-        if m_ < 0 then error "m must be at least 0." end if:
-        if s_ < 1 then error "s must be at least 1." end if:
-        self:-r := nops(ns_);
-        self:-ns := ns_;
-        self:-n := add(ns_);
-        self:-m := m_;
-        self:-s := s_;
+        if m < 0 then error "m must be at least 0." end if:
+        if s < 1 then error "s must be at least 1." end if:
+        self:-r := nops(ns);
+        self:-ns := ns;
+        self:-n := add(ns);
+        self:-m := m;
+        self:-s := s;
     end;
 
     (*
@@ -106,30 +109,56 @@ module PMatrix()
         Object(PMatrix, _passed);
     end;
 
+    (*
+    This method is for creates a PMatrix from various kinds of data. It supports
+    four different input methods:
+    (1) format :: PFormat, lss :: list(list(integer)), d :: Matrix.
+    (2) lss :: list(list(integer)), d :: Matrix.
+    (3) r :: integer, P :: Matrix (NOT YET IMPLEMMENTED)
+    (4) P :: Matrix (NOT YET IMPLEMMENTED)
+
+    In input method (1) and (2), `lss` is the list of exponent vectors of relations
+    of the Cox Ring. These make up the first `r-1` rows of the PMatrix. The lower
+    `s` rows are given in the matrix `d`. In method (2), the format of the matrix
+    is inferred from the given data.
+
+    In methods (3) and (4), the P-Matrix is directly specified and all other data
+    is inferred.
+
+    TODO: Explain why method (4) is bad.
+
+    *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local rows, i, j, P;
+        local ls, l, rows, i, j, P;
         if _npassed = 2 then error "not enough arguments." end if;
 
-        # Input method (1)
-        # format, ls, d
         if type(_passed[3], 'PFormat') then
+            # Input method (1)
+            # format :: PFormat, lss :: list(list(integer)), d :: Matrix.
+
             if _npassed < 5 then
-                error "Not enough arguments. Expected input: PFormat, list(list(integer)), Matrix, Matrix.";
+                error "Not enough arguments. Expected input: PFormat, list(list(integer)), Matrix.";
             end if:
 
-            if not type(_passed[3], 'PFormat') then
-                error "Expected 2nd argument to be of type: PFormat.";
-            end if;
             setFormat(self, _passed[3]);
 
             if not type(_passed[4], list(list(integer))) then
-                error "Expected 3rd argument to be of type: list(list(integer))";
+                error "Expected 2nd argument to be of type: list(list(integer))";
             end if;
+
             self:-lss := _passed[4];
 
+            for ls in self:-lss do
+                for l in ls do
+                    if l < 1 then
+                        error "All entries of `lss` must be greater or equal to 1."
+                    end if;
+                end do;
+            end do;
+
             if not type(_passed[5], 'Matrix'(self:-s, self:-n + self:-m, integer)) then
-                error "Expected 4th argument to be of type: Matrix(%1, %2, integer)", self:-s, self:-n + self:-m;
+                error "Expected 3rd argument to be of type: Matrix(%1, %2, integer)", self:-s, self:-n + self:-m;
             end if;
             self:-d := _passed[5];
 
@@ -146,8 +175,26 @@ module PMatrix()
                      seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
             self:-mat := Matrix(rows);
 
-        else
-            error "Wrong arguments.";
+        elif type(_passed[3], list(list(integer))) then
+            # Input method (2)
+            # lss :: list(list(integer)), d :: Matrix.
+
+            if _npassed < 4 then
+                error "Not enough arguments. Expected input: list(list(integer)), Matrix.";
+            end if;
+
+            if not type(_passed[4], 'Matrix') then
+                error "Expected 2nd argument to be of type: Matrix";
+            end if;
+
+            self:-lss := _passed[3];
+            self:-ns := map(nops, self:-lss);
+            self:-d := _passed[4];
+            self:-format := PFormat(self:-ns, ColumnDimension(self:-d) - add(self:-ns), RowDimension(self:-d));
+            return PMatrix[ModuleCopy](self, proto, self:-format, self:-lss, self:-d);
+
+        elif type(_passed[3], integer) then
+
         end if;
 
     end;
