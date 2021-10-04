@@ -19,8 +19,8 @@ module PFormat()
     export ModuleCopy :: static := proc(self :: PFormat, proto :: PFormat,
         ns :: list(integer), m :: integer, s :: integer, $)
         local i;
-        if nops(ns) < 2 then
-            error "r = nops(ns) must be at least 2."
+        if nops(ns) < 3 then
+            error "r = nops(ns) must be at least 3."
         end if;
         for i in ns do
             if i < 1 then error "each element of ns must be at least 1." end if:
@@ -130,7 +130,7 @@ module PMatrix()
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local ls, l, rows, i, j, P;
+        local lss, ls, l, rows, i, j, P, r, ns, numZerosBefore;
         if _npassed = 2 then error "not enough arguments." end if;
 
         if type(_passed[3], 'PFormat') then
@@ -194,6 +194,118 @@ module PMatrix()
             return PMatrix[ModuleCopy](self, proto, self:-format, self:-lss, self:-d);
 
         elif type(_passed[3], integer) then
+
+            if _npassed < 4 then
+                error "Not enough arguments. Expected input: integer, Matrix";
+            end if;
+
+            r := _passed[3];
+            if r < 3 then
+                error "r must be at least 3."
+            end if;
+
+            if not type(_passed[4], Matrix) then
+                error "Expected 2nd argument to be of type: Matrix";
+            end if;
+
+            P := _passed[4];
+            self:-mat := P;
+
+            for i in P do
+                if not type(i, integer) then
+                    error "All entries of P must be of type: integer";
+                end if;
+            end do;
+
+            if RowDimension(P) < r then
+                error "P must have at least r = %1 rows", r;
+            end if;
+
+            # Get the first vector l1 by looking at the second row of P
+            ls := [];
+            i := 1;
+            while P[2,i] <> 0 do
+                if P[2,i] > -1 then
+                    error " Given matrix is not in P-shape. Expected: P[2,%1] < 0. Given: P[2,%1] = %2", i, P[2,i];
+                end if;
+
+                ls := [op(ls), -P[2,i]];
+                i := i + 1;
+
+                # Needs to be checked before we re-enter the loop
+                if i > ColumnDimension(P) then
+                    error "Given matrix is not in P-shape. Expected: P[2,%1] = 0. Given: P[2,%1] = %2", i-1, P[2,i-1];
+                end if;
+            end do;
+
+            lss := [ls];
+            ns := [nops(ls), 0 $ r-1]; # Here, we preliminarily fill up with zeros.
+
+            # Check that the first r-1 rows of P all start with -l1
+            for i from 1 to r-1 do
+                for j from 1 to nops(ls) do
+                    if P[i,j] <> P[2,j] then
+                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = P[2,%2]. Given: P[%1,%2] = %3 and P[2,%2] = %4", i, j, P[i,j], P[2,j];
+                    end if;
+                end do;
+            end do;
+
+            for i from 1 to r-1 do
+                # Note that since we fill up the remaining entries of `ns` with zeros, the following
+                # gives the correct result.
+                numZerosBefore := add(ns[2..]);
+                for j from ns[1] + 1 to ns[1] + numZerosBefore do
+                    if P[i,j] <> 0 then
+                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = 0. Given: P[%1,%2] = %3", i, j, P[i,j];
+                    end if;
+                end do;
+
+                if P[i,j] < 1 then
+                    error "Given matrix is not in P-shape. Expected: P[%1,%2] > 0. Given: P[%1,%2] = %3", i, j, P[i,j];
+                end if;
+
+                ls := [];
+                while P[i,j] <> 0 do
+
+                    if P[i,j] < 1 then
+                        error "Given matrix is not in P-shape. Expected: P[%1,%2] > 0. Given: P[%1,%2] = %3", i, j, P[i,j];
+                    end if;
+
+                    ls := [op(ls), P[i,j]];
+
+                    if i = r-1 and j = ColumnDimension(P) then
+                      break; # In this case, we are done.
+                    end if;
+
+                    j := j + 1;
+
+                    # Needs to be checked before we re-enter the loop
+                    if j > ColumnDimension(P) then
+                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = 0. Given: P[%1,%2] = %3", i, j-1, P[i,j-1];
+                    end if;
+
+                end do;
+
+                ns[i+1] := nops(ls);
+                lss := [op(lss), ls];
+
+            end do;
+
+            self:-lss := lss;
+
+            setFormat(self, PFormat(ns, ColumnDimension(P) - add(ns), RowDimension(P) - r + 1));
+
+            # Check if we really have all-zeros in the upper right block
+            for i from 1 to r-1 do
+                for j from self:-n + 1 to self:-n + self:-m do
+                    if P[i,j] <> 0 then
+                        error "Given matrix is not in P-shape. Expected P[%1,%2] = 0. Given: P[%1,%2] = %3", i, j, P[i,j];
+                    end if;
+                end do;
+            end do;
+
+            # Finally, we get the d-block
+            self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
 
         end if;
 
