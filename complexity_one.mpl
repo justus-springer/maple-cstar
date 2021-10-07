@@ -19,8 +19,8 @@ module PFormat()
     export ModuleCopy :: static := proc(self :: PFormat, proto :: PFormat,
         ns :: list(integer), m :: integer, s :: integer, $)
         local i;
-        if nops(ns) < 3 then
-            error "r = nops(ns) must be at least 3."
+        if nops(ns) < 2 then
+            error "r = nops(ns) must be at least 2."
         end if;
         for i in ns do
             if i < 1 then error "each element of ns must be at least 1." end if:
@@ -105,6 +105,25 @@ module PMatrix()
         self:-s := f:-s;
     end proc;
 
+    # Check if all columns of P are primitive
+    # Throws an error if they are not.
+    local assertColumnsPrimitive :: static := proc(self :: PMatrix)
+        local i;
+        for i from 1 to self:-n + self:-m do
+            if igcd(seq(Column(self:-mat, i))) <> 1 then
+                error "This is not a P-matrix: The %-1 column is not primitve.", i;
+            end if;
+        end do;
+    end proc;
+
+    # Check if the columns generate QQ^(r+s) as a cone.
+    # Throws an error if they do not.
+    local assertColumnsGenerateFullCone :: static := proc(self :: PMatrix)
+        if poshull(Column(self:-mat, [1..self:-n + self:-m])) &<> fullcone(self:-r + self:-s - 1) then
+            error "This is not a P-matrix. The columns do not generate QQ^(r+s) as a cone.";
+        end if;
+    end proc;
+
     export ModuleApply :: static := proc()
         Object(PMatrix, _passed);
     end;
@@ -114,7 +133,7 @@ module PMatrix()
     four different input methods:
     (1) format :: PFormat, lss :: list(list(integer)), d :: Matrix.
     (2) lss :: list(list(integer)), d :: Matrix.
-    (3) r :: integer, P :: Matrix (NOT YET IMPLEMMENTED)
+    (3) r :: integer, P :: Matrix
     (4) P :: Matrix (NOT YET IMPLEMMENTED)
 
     In input method (1) and (2), `lss` is the list of exponent vectors of relations
@@ -175,6 +194,9 @@ module PMatrix()
                      seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
             self:-mat := Matrix(rows);
 
+            assertColumnsPrimitive(self);
+            assertColumnsGenerateFullCone(self);
+
         elif type(_passed[3], list(list(integer))) then
             # Input method (2)
             # lss :: list(list(integer)), d :: Matrix.
@@ -200,8 +222,8 @@ module PMatrix()
             end if;
 
             r := _passed[3];
-            if r < 3 then
-                error "r must be at least 3."
+            if r < 2 then
+                error "r must be at least 2."
             end if;
 
             if not type(_passed[4], Matrix) then
@@ -303,6 +325,9 @@ module PMatrix()
                     end if;
                 end do;
             end do;
+
+            assertColumnsPrimitive(self);
+            assertColumnsGenerateFullCone(self);
 
             # Finally, we get the d-block
             self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
