@@ -93,6 +93,7 @@ module PMatrix()
     local picardNumber := undefined;
     local Q := undefined;
     local Q0 := undefined;
+    local classGroup := undefined;
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
 
@@ -119,7 +120,7 @@ module PMatrix()
     # Check if the columns generate QQ^(r+s) as a cone.
     # Throws an error if they do not.
     local assertColumnsGenerateFullCone :: static := proc(self :: PMatrix)
-        if poshull(Column(self:-mat, [1..self:-n + self:-m])) &<> fullcone(self:-r + self:-s - 1) then
+        if poshull(Column(self:-mat, [seq(1..self:-n + self:-m)])) &<> fullcone(self:-r + self:-s - 1) then
             error "This is not a P-matrix. The columns do not generate QQ^(r+s) as a cone.";
         end if;
     end proc;
@@ -344,8 +345,9 @@ module PMatrix()
             self:-Q
         else
             A := AGHP2Q(convert(self, matrix));
+            self:-classGroup := AGHdata(A)[2];
             self:-Q := Matrix(AGHdata(A)[3]);
-            self:-picardNumber := AGdata(AGHdata(A)[2])[3];
+            self:-picardNumber := AGdata(self:-classGroup)[3];
             self:-Q0 := DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q));
             self:-Q;
         end if;
@@ -353,10 +355,19 @@ module PMatrix()
 
     export getQ0 :: static := proc(self :: PMatrix)
         if not type(self:-Q0, undefined) then
-            self:-Q0
+            self:-Q0;
         else
             getQ(self);
             getQ0(self);
+        end if;
+    end;
+
+    export getClassGroup :: static := proc(self :: PMatrix)
+        if not type(self:-classGroup, undefined) then
+            self:-classGroup;
+        else
+            getQ(self);
+            getClassGroup(self);
         end if;
     end;
 
@@ -379,13 +390,19 @@ module PMatrix()
     end;
 
     export getAnticanClass :: static := proc(self :: PMatrix)
-        local Q0, as, i;
+        local as, i, anticanVec, d;
         if not type(self:-anticanClass, undefined) then
             self:-anticanClass;
         else
-            Q0 := getQ0(self);
             as := getAnticanCoefficients(self);
-            self:-anticanClass := add(seq(as[i] * Column(Q0, i), i = 1 .. self:-n + self:-m));
+            anticanVec := add(seq(as[i] * Column(getQ(self), i), i = 1 .. self:-n + self:-m));
+            # Some entries in `anticanVec` live in cyclic groups Z/dZ.
+            # We normalize these entries, so that each of them is less than `d`.
+            for i from getPicardNumber(self) + 1 to RowDimension(getQ(self)) do
+                d := AGdata(getClassGroup(P))[4][i - getPicardNumber(self)];
+                anticanVec[i] := anticanVec[i] mod d;
+            end do;
+            return anticanVec;
         end if;
     end;
 
@@ -409,10 +426,11 @@ module PMatrix()
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
-        local P, Q, picardNumber, anticanClass;
+        local P, Q, picardNumber, classGroup, anticanClass;
         print(P = self:-mat);
         nprintf(cat("Format: ", self:-ns, ", m = ", self:-m, ", s = ", self:-s)); #"
         print(Q = getQ(self));
+        print(classGroup = getClassGroup(self));
         print(picardNumber = getPicardNumber(self));
         print(anticanClass = getAnticanClass(self));
     end;
