@@ -22,7 +22,7 @@ $define DB_Q 5
 $define DB_ANTICAN 8
 $define DB_PICARDNUMBER 14
 
-local CSVData, t, row, ns, m, i, j, format, expected_antican, d, Sigma:
+local CSVData, t, row, r, P, expected_Q, evaluated_Q, i, j, expected_antican, d, Sigma:
 
 CSVData := ImportMatrix("gorenstein_database.txt", delimiter = ";"):
 
