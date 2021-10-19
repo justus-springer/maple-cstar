@@ -399,7 +399,7 @@ module PMatrix()
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
             # We normalize these entries, so that each of them is less than `d`.
             for i from getPicardNumber(self) + 1 to RowDimension(getQ(self)) do
-                d := AGdata(getClassGroup(P))[4][i - getPicardNumber(self)];
+                d := AGdata(getClassGroup(self))[4][i - getPicardNumber(self)];
                 anticanVec[i] := anticanVec[i] mod d;
             end do;
             return anticanVec;
@@ -415,9 +415,9 @@ module PMatrix()
     *)
     export isGorensteinForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
         local as, u, us, i, j, sol;
-        as := getAnticanCoefficients(P);
-        us := [seq(u[i], i = 1 .. RowDimension(P:-mat))];
-        sol := isolve({seq(DotProduct(us, Column(P:-mat, j)) = as[j], j in cone)});
+        as := getAnticanCoefficients(self);
+        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        sol := isolve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
         return evalb(sol <> NULL);
     end;
 
