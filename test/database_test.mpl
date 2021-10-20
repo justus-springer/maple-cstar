@@ -36,11 +36,11 @@ for i from 2 to RowDimension(CSVData) do
     # Test if the degree matrix is as expected
     expected_Q := parse(row[DB_Q]):
     evaluated_Q := map(x -> convert(x, list), [Row(getQ(P), [seq(1 .. RowDimension(getQ(P)))])]):
-    Test(evaluated_Q, expected_Q, label = cat("Variety id: ", row[DB_ID], ", Degree matrix test")):
+    Test(evaluated_Q, eval(expected_Q), 'simplify', label = cat("Variety id: ", row[DB_ID], ", Degree matrix test")):
 
     # Test if the anticanonical class is as expected
     expected_antican := parse(row[DB_ANTICAN]):
-    Test(convert(getAnticanClass(P), list), expected_antican, label = cat("Variety id: ", row[DB_ID], ", Antican test")):
+    Test(convert(getAnticanClass(P), list), eval(expected_antican), 'simplify', label = cat("Variety id: ", row[DB_ID], ", Antican test")):
     
     # Gorenstein test
     d := P:-n + P:-m;
