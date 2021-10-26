@@ -11,44 +11,27 @@ $include "../complexity_one.mpl"
 with(convex):
 with(ComplexityOne):
 with(CodeTools):
-with(LinearAlgebra):
 
-# Hard coded indices for the CSV table
-
-$define DB_ID 1
-$define DB_FORMAT 2
-$define DB_P 3
-$define DB_Q 5
-$define DB_ANTICAN 8
-$define DB_PICARDNUMBER 14
-
-local CSVData, t, row, r, P, expected_Q, evaluated_Q, i, j, expected_antican, d, Sigma:
-
-CSVData := ImportMatrix("gorenstein_database.txt", delimiter = ";"):
+local t, Ps, i, P, numColumns, Sigma, X:
 
 t := time():
-# We skip the first row, as these are just labels
-for i from 2 to RowDimension(CSVData) do
-    row := CSVData[i]:
-    r := nops(parse(row[DB_FORMAT])) - 1:
-    P := PMatrix(r, Matrix(parse(row[DB_P]))):
 
-    # Test if the degree matrix is as expected
-    expected_Q := parse(row[DB_Q]):
-    evaluated_Q := map(x -> convert(x, list), [Row(getQ(P), [seq(1 .. RowDimension(getQ(P)))])]):
-    Test(evaluated_Q, eval(expected_Q), 'simplify', label = cat("Variety id: ", row[DB_ID], ", Degree matrix test")):
+printf("Parsing and verifying gorenstein_database.txt...\n"):
 
-    # Test if the anticanonical class is as expected
-    expected_antican := parse(row[DB_ANTICAN]):
-    Test(convert(getAnticanClass(P), list), eval(expected_antican), 'simplify', label = cat("Variety id: ", row[DB_ID], ", Antican test")):
-    
-    # Gorenstein test
-    d := P:-n + P:-m;
-    Sigma := convert(combinat[powerset]({seq(1..d)}) minus {{seq(1..d)}}, list):
+Ps := parseCSV("../gorenstein_database.txt"):
+
+printf("Parsing succesfull. Performing gorenstein tests...\n"):
+
+# Check the gorenstein condition for every P-matrix.
+for i from 1 to nops(Ps) do
+
+    P := Ps[i];
+    numColumns := P:-n + P:-m;
+    Sigma := convert(combinat[powerset]({seq(1..numColumns)}) minus {{seq(1..numColumns)}}, list):
     X := TVarOne(P, Sigma);
-    Test(isGorenstein(X), true, label = cat("Variety id: ", row[DB_ID], ", Gorenstein test")):
+    Test(isGorenstein(X), true, label = cat("Row: ", i, ", Gorenstein test")):
 
 end do:
 
 t := time() - t:
-print(cat("Elapsed time = ", t, "s")):
+printf("Elapsed time = %gs\n", t):
