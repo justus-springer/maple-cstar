@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne;
+export PFormat, PMatrix, TVarOne, parseCSV;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage;
@@ -130,22 +130,29 @@ module PMatrix()
     end;
 
     (*
-    This method is for creates a PMatrix from various kinds of data. It supports
-    four different input methods:
+    This procedure creates a PMatrix from various kinds of data. It supports
+    five different input methods:
     (1) format :: PFormat, lss :: list(list(integer)), d :: Matrix.
     (2) lss :: list(list(integer)), d :: Matrix.
-    (3) r :: integer, P :: Matrix
-    (4) P :: Matrix (NOT YET IMPLEMMENTED)
+    (3) format :: PFormat, P :: Matrix.
+    (4) r :: integer, P :: Matrix
+    (5) P :: Matrix (NOT YET IMPLEMMENTED)
 
     In input method (1) and (2), `lss` is the list of exponent vectors of relations
     of the Cox Ring. These make up the first `r-1` rows of the PMatrix. The lower
-    `s` rows are given in the matrix `d`. In method (2), the format of the matrix
+    `s` rows have to be provided the matrix `d`. In method (2), the format of the matrix
     is inferred from the given data.
 
-    In methods (3) and (4), the P-Matrix is directly specified and all other data
-    is inferred.
+    In methods (3), (4) and (5), the P-Matrix is directly specified. It will be checked
+    if this matrix fulfills the properties of a P-Matrix, i.e. if it has the correct shape,
+    the columns are primitive and they generate the whole space as a cone. In method (3), the
+    expected P-Format is specified and will be checked against P. In method (4), only the number of
+    exponent vectors `r` is specified, all other data is inferred from `P`. In method (5), only the
+    matrix is provided. Note that this comes with some ambiguity: If we don't know how many
+    exponent vectors there are, hence we don't know where the upper block of `P` ends and the d-block 
+    starts. In this case, we can only make an educated guess based on the entries of `P`.
 
-    TODO: Explain why method (4) is bad.
+    TODO: Explain more about input method (5).
 
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
@@ -154,49 +161,71 @@ module PMatrix()
         if _npassed = 2 then error "not enough arguments." end if;
 
         if type(_passed[3], 'PFormat') then
-            # Input method (1)
-            # format :: PFormat, lss :: list(list(integer)), d :: Matrix.
+            # Input method (1) or (3)
 
-            if _npassed < 5 then
-                error "Not enough arguments. Expected input: PFormat, list(list(integer)), Matrix.";
+            if _npassed < 4 then
+                error "Not enough arguments. Expected input method (1) or (3).";
             end if:
 
-            setFormat(self, _passed[3]);
+            if type(_passed[4], Matrix) then
+                # Input method (3)
 
-            if not type(_passed[4], list(list(integer))) then
-                error "Expected 2nd argument to be of type: list(list(integer))";
-            end if;
-
-            self:-lss := _passed[4];
-
-            for ls in self:-lss do
-                for l in ls do
-                    if l < 1 then
-                        error "All entries of `lss` must be greater or equal to 1."
-                    end if;
-                end do;
-            end do;
-
-            if not type(_passed[5], 'Matrix'(self:-s, self:-n + self:-m, integer)) then
-                error "Expected 3rd argument to be of type: Matrix(%1, %2, integer)", self:-s, self:-n + self:-m;
-            end if;
-            self:-d := _passed[5];
-
-            # Check if the given ls match the given P-format
-            for i from 1 to self:-r do
-                if nops(self:-lss[i]) <> self:-ns[i] then
-                    error "length of %-1 vector in lss does not match given P-format. Expected length: %2. Given length: %3.", i, self:-ns[i], nops(self:-lss[i]);
+                # In this case, we call the function again with input method (4) and check if the
+                # inferred format coincides with the given one.
+                P := PMatrix(_passed[3]:-r, _passed[4]);
+                if P:-ns <> _passed[3]:-ns then
+                    error "Expected P-Format does not coincide with the inferred one. Expected: ns = %1. Inferred: ns = %2", _passed[3]:-ns, P:-ns;
+                elif P:-m <> _passed[3]:-m then
+                    error "Expected P-Format does not coincide with the inferred one. Expected: m = %1. Inferred: m = %2", _passed[3]:-m, P:-m;
+                elif P:-s <> _passed[3]:-s then
+                    error "Expected P-Format does not coincide with the inferred one. Expected: m = %1. Inferred: m = %2", _passed[3]:-s, P:-s;
                 end if;
-            end do:
 
-            # Construct the P-matrix from the given data
-            rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
-                         seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]) + self:-m)], i = 2 .. self:-r),
-                     seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
-            self:-mat := Matrix(rows);
+                setFormat(self, _passed[3]);
+                self:-lss := P:-lss;
+                self:-mat := P:-mat;
+                self:-d := P:-d;
 
-            assertColumnsPrimitive(self);
-            assertColumnsGenerateFullCone(self);
+            else
+                # Input method (1)
+                # PFormat, list(list(integer)), Matrix.
+                setFormat(self, _passed[3]);
+
+                if not type(_passed[4], list(list(integer))) then
+                    error "Expected 2nd argument to be of type: list(list(integer))";
+                end if;
+
+                self:-lss := _passed[4];
+
+                for ls in self:-lss do
+                    for l in ls do
+                        if l < 1 then
+                            error "All entries of `lss` must be greater or equal to 1."
+                        end if;
+                    end do;
+                end do;
+
+                if not type(_passed[5], 'Matrix'(self:-s, self:-n + self:-m, integer)) then
+                    error "Expected 3rd argument to be of type: Matrix(%1, %2, integer)", self:-s, self:-n + self:-m;
+                end if;
+                self:-d := _passed[5];
+
+                # Check if the given ls match the given P-format
+                for i from 1 to self:-r do
+                    if nops(self:-lss[i]) <> self:-ns[i] then
+                        error "length of %-1 vector in lss does not match given P-format. Expected length: %2. Given length: %3.", i, self:-ns[i], nops(self:-lss[i]);
+                    end if;
+                end do:
+
+                # Construct the P-matrix from the given data
+                rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
+                            seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]) + self:-m)], i = 2 .. self:-r),
+                        seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
+                self:-mat := Matrix(rows);
+
+                assertColumnsPrimitive(self);
+                assertColumnsGenerateFullCone(self);
+            end if;
 
         elif type(_passed[3], list(list(integer))) then
             # Input method (2)
@@ -217,7 +246,9 @@ module PMatrix()
             return PMatrix[ModuleCopy](self, proto, self:-format, self:-lss, self:-d);
 
         elif type(_passed[3], integer) then
-
+            # Input method (4)
+            # r :: integer, P :: Matrix
+        
             if _npassed < 4 then
                 error "Not enough arguments. Expected input: integer, Matrix";
             end if;
@@ -506,5 +537,74 @@ module TVarOne()
     end;
 
 end module:
+
+
+parseCSV := proc(fn :: string)
+    local CSVData, index_row, i, INDEX_P, INDEX_FORMAT, INDEX_Q, INDEX_ANTICAN, row, Ps, P;
+    local evaluated_Q, expected_Q, evaluated_antican, expected_antican;
+
+    CSVData := ImportMatrix(fn, delimiter = ";");
+    index_row := CSVData[1];
+
+    # First, find out index numbers of the fields by looking at the first row.
+    for i from 1 to Dimension(index_row) do
+        if index_row[i] = "P-Format" or index_row[i] = "Format" then
+            INDEX_FORMAT := i;
+        elif index_row[i] = "Generator matrix" or index_row[i] = "P" then
+            INDEX_P := i;
+        elif index_row[i] = "Degree matrix" or index_row[i] = "Q" then
+            INDEX_Q := i;
+        elif index_row[i] = "Anticanonical class" or index_row[i] = "Antican class" then
+            INDEX_ANTICAN := i;
+        end if;
+    end do;
+
+    if not type(INDEX_FORMAT, integer) then
+        error "Not enough data. You must provide a column for the format of the P-Matrix. Please call it \"P-Format\" or \"Format\"";
+    end if;
+
+    (*
+    if not type(INDEX_P, integer) and not (type(INDEX_LSS, integer) or type(INDEX_LSS, integer)) then
+        error "Not enough data. You must either provide a column with the P-Matrix (called \"P\" or \"Generator Matrix\"), or a column for the exponent vectors (called \"Exponent vectors\") and a column with the d-Block (called \"d\" or \"d-Block\")";
+    end if;
+    *)
+
+    if not type(INDEX_FORMAT, integer) then
+        error "Not enough data. You must provide a column for the P-Matrix. Please call it \"P\" or \"Generator Matrix\"";
+    end if;
+
+
+    Ps := [];
+    for i from 2 to RowDimension(CSVData) do
+        row := CSVData[i];
+        try
+            format := PFormat(parse(row[INDEX_FORMAT]));
+            P := PMatrix(format, Matrix(parse(row[INDEX_P])));
+        catch:
+            error "Error while reading line %1: %2", i, StringTools[FormatMessage](lastexception[2 .. -1]);
+        end try;
+        Ps := [op(Ps), P];
+
+        if not 'nochecks' in { _passed } then
+            # Test if the degree matrix is as expected
+            expected_Q := parse(row[INDEX_Q]):
+            evaluated_Q := map(x -> convert(x, list), [Row(getQ(P), [seq(1 .. RowDimension(getQ(P)))])]):
+            if expected_Q <> evaluated_Q then
+                error "In %-1 row: Degree matrix check failed. Evaluated: %2. Given: %3.", i, evaluated_Q, expected_Q;
+            end if;
+
+            # Test if the anticanonical class is as expected
+            expected_antican := parse(row[INDEX_ANTICAN]):
+            evaluated_antican := convert(getAnticanClass(P), list);
+            if expected_antican <> evaluated_antican then
+                error "In %-1 row: Antican check failed. Evaluated: %2. Given: %3.", i, evaluated_antican, expected_antican;
+            end if;
+        end if;
+
+    end do;
+
+    return Ps;
+
+end proc;
 
 end module:
