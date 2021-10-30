@@ -135,7 +135,7 @@ module PMatrix()
     (1) format :: PFormat, lss :: list(list(integer)), d :: Matrix.
     (2) lss :: list(list(integer)), d :: Matrix.
     (3) format :: PFormat, P :: Matrix.
-    (4) r :: integer, P :: Matrix
+    (4) s :: integer, P :: Matrix
     (5) P :: Matrix (NOT YET IMPLEMMENTED)
 
     In input method (1) and (2), `lss` is the list of exponent vectors of relations
@@ -146,18 +146,18 @@ module PMatrix()
     In methods (3), (4) and (5), the P-Matrix is directly specified. It will be checked
     if this matrix fulfills the properties of a P-Matrix, i.e. if it has the correct shape,
     the columns are primitive and they generate the whole space as a cone. In method (3), the
-    expected P-Format is specified and will be checked against P. In method (4), only the number of
-    exponent vectors `r` is specified, all other data is inferred from `P`. In method (5), only the
-    matrix is provided. Note that this comes with some ambiguity: If we don't know how many
-    exponent vectors there are, hence we don't know where the upper block of `P` ends and the d-block 
-    starts. In this case, we can only make an educated guess based on the entries of `P`.
+    expected P-Format is specified and will be checked against P. In method (4), only the dimension
+    of the acting torus `s` is specified (the dimension of the overall variety will be `s+1`). 
+    In method (5), only the matrix is provided. Note that this comes with some ambiguity: If we don't 
+    know how many exponent vectors there are, hence we don't know where the upper block of `P` ends and 
+    the d-block starts. In this case, we can only make an educated guess based on the entries of `P`.
 
     TODO: Explain more about input method (5).
 
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, rows, i, j, P, r, ns, numZerosBefore;
+        local lss, ls, l, rows, i, j, P, r, s, ns, numZerosBefore;
         if _npassed = 2 then error "not enough arguments." end if;
 
         if type(_passed[3], 'PFormat') then
@@ -172,7 +172,7 @@ module PMatrix()
 
                 # In this case, we call the function again with input method (4) and check if the
                 # inferred format coincides with the given one.
-                P := PMatrix(_passed[3]:-r, _passed[4]);
+                P := PMatrix(_passed[3]:-s, _passed[4]);
                 if P:-ns <> _passed[3]:-ns then
                     error "Expected P-Format does not coincide with the inferred one. Expected: ns = %1. Inferred: ns = %2", _passed[3]:-ns, P:-ns;
                 elif P:-m <> _passed[3]:-m then
@@ -247,16 +247,13 @@ module PMatrix()
 
         elif type(_passed[3], integer) then
             # Input method (4)
-            # r :: integer, P :: Matrix
+            # s :: integer, P :: Matrix
         
             if _npassed < 4 then
                 error "Not enough arguments. Expected input: integer, Matrix";
             end if;
 
-            r := _passed[3];
-            if r < 2 then
-                error "r must be at least 2."
-            end if;
+            s := _passed[3];
 
             if not type(_passed[4], Matrix) then
                 error "Expected 2nd argument to be of type: Matrix";
@@ -264,6 +261,12 @@ module PMatrix()
 
             P := _passed[4];
             self:-mat := P;
+
+            if s >= RowDimension(P) - 1 then
+                error "The dimension of the acting torus `s` cannot be greater than the number of rows of `P` minus one.";
+            end if;
+
+            r := RowDimension(P) - s + 1;
 
             for i in P do
                 if not type(i, integer) then
@@ -275,20 +278,20 @@ module PMatrix()
                 error "P must have at least r = %1 rows", r;
             end if;
 
-            # Get the first vector l1 by looking at the second row of P
+            # Get the first vector l1 by looking at the first row of `P`.
+            # We move right until the entries are no longer negative.
             ls := [];
+            if not (P[1,1] < 0) then
+                error "Given matrix is not in P-shape. Expected: P[1,1] < 0. Given: P[1,1] = %1", P[1,1];
+            end if;
             i := 1;
-            while P[2,i] <> 0 do
-                if P[2,i] > -1 then
-                    error " Given matrix is not in P-shape. Expected: P[2,%1] < 0. Given: P[2,%1] = %2", i, P[2,i];
-                end if;
-
-                ls := [op(ls), -P[2,i]];
+            while P[1,i] < 0 do
+                ls := [op(ls), -P[1,i]];
                 i := i + 1;
 
                 # Needs to be checked before we re-enter the loop
                 if i > ColumnDimension(P) then
-                    error "Given matrix is not in P-shape. Expected: P[2,%1] = 0. Given: P[2,%1] = %2", i-1, P[2,i-1];
+                    error "Given matrix is not in P-shape. Expected: P[1,%1] > 0. Given: P[1,%1] = %2", i-1, P[1,i-1];
                 end if;
             end do;
 
@@ -299,7 +302,7 @@ module PMatrix()
             for i from 1 to r-1 do
                 for j from 1 to nops(ls) do
                     if P[i,j] <> P[2,j] then
-                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = P[2,%2]. Given: P[%1,%2] = %3 and P[2,%2] = %4", i, j, P[i,j], P[2,j];
+                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = P[1,%2]. Given: P[%1,%2] = %3 and P[1,%2] = %4", i, j, P[i,j], P[1,j];
                     end if;
                 end do;
             end do;
@@ -375,6 +378,7 @@ module PMatrix()
         if not type(self:-Q, undefined) then
             self:-Q
         else
+            print("Q computed");
             A := AGHP2Q(convert(self, matrix));
             self:-classGroup := AGHdata(A)[2];
             self:-Q := Matrix(AGHdata(A)[3]);
@@ -540,7 +544,7 @@ end module:
 
 
 parseCSV := proc(fn :: string)
-    local CSVData, index_row, i, INDEX_P, INDEX_FORMAT, INDEX_Q, INDEX_ANTICAN, row, Ps, P;
+    local CSVData, index_row, i, INDEX_P, INDEX_FORMAT, INDEX_Q, INDEX_ANTICAN, row, format, Ps, P;
     local evaluated_Q, expected_Q, evaluated_antican, expected_antican;
 
     CSVData := ImportMatrix(fn, delimiter = ";");
@@ -569,7 +573,7 @@ parseCSV := proc(fn :: string)
     end if;
     *)
 
-    if not type(INDEX_FORMAT, integer) then
+    if not type(INDEX_P, integer) then
         error "Not enough data. You must provide a column for the P-Matrix. Please call it \"P\" or \"Generator Matrix\"";
     end if;
 
@@ -587,18 +591,23 @@ parseCSV := proc(fn :: string)
 
         if not 'nochecks' in { _passed } then
             # Test if the degree matrix is as expected
-            expected_Q := parse(row[INDEX_Q]):
-            evaluated_Q := map(x -> convert(x, list), [Row(getQ(P), [seq(1 .. RowDimension(getQ(P)))])]):
-            if expected_Q <> evaluated_Q then
-                error "In %-1 row: Degree matrix check failed. Evaluated: %2. Given: %3.", i, evaluated_Q, expected_Q;
+            if type(INDEX_Q, integer) then
+                expected_Q := parse(row[INDEX_Q]):
+                evaluated_Q := map(x -> convert(x, list), [Row(getQ(P), [seq(1 .. RowDimension(getQ(P)))])]):
+                if expected_Q <> evaluated_Q then
+                    error "In %-1 row: Degree matrix check failed. Evaluated: %2. Given: %3.", i, evaluated_Q, expected_Q;
+                end if;
             end if;
 
-            # Test if the anticanonical class is as expected
-            expected_antican := parse(row[INDEX_ANTICAN]):
-            evaluated_antican := convert(getAnticanClass(P), list);
-            if expected_antican <> evaluated_antican then
-                error "In %-1 row: Antican check failed. Evaluated: %2. Given: %3.", i, evaluated_antican, expected_antican;
+            if type(INDEX_ANTICAN, integer) then
+                # Test if the anticanonical class is as expected
+                expected_antican := parse(row[INDEX_ANTICAN]):
+                evaluated_antican := convert(getAnticanClass(P), list);
+                if expected_antican <> evaluated_antican then
+                    error "In %-1 row: Antican check failed. Evaluated: %2. Given: %3.", i, evaluated_antican, expected_antican;
+                end if;
             end if;
+            
         end if;
 
     end do;
