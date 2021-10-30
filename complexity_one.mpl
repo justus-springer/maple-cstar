@@ -262,7 +262,7 @@ module PMatrix()
             P := _passed[4];
             self:-mat := P;
 
-            if s >= RowDimension(P) - 1 then
+            if s > RowDimension(P) - 1 then
                 error "The dimension of the acting torus `s` cannot be greater than the number of rows of `P` minus one.";
             end if;
 
@@ -301,7 +301,7 @@ module PMatrix()
             # Check that the first r-1 rows of P all start with -l1
             for i from 1 to r-1 do
                 for j from 1 to nops(ls) do
-                    if P[i,j] <> P[2,j] then
+                    if P[i,j] <> P[1,j] then
                         error "Given matrix is not in P-shape. Expected: P[%1,%2] = P[1,%2]. Given: P[%1,%2] = %3 and P[1,%2] = %4", i, j, P[i,j], P[1,j];
                     end if;
                 end do;
@@ -378,7 +378,6 @@ module PMatrix()
         if not type(self:-Q, undefined) then
             self:-Q
         else
-            print("Q computed");
             A := AGHP2Q(convert(self, matrix));
             self:-classGroup := AGHdata(A)[2];
             self:-Q := Matrix(AGHdata(A)[3]);
