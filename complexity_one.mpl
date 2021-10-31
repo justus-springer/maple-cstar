@@ -76,6 +76,41 @@ module PFormat()
         isBigCone(self, cone) or isLeafCone(self, cone):
     end:
 
+    (*
+    Given a list of cones, compute the list X-cones which are maximal with respect to a given PFormat.
+    This algorithm is experimental and hasn't been properly tested yet.
+    *)
+    export getMaximalXConesFormat :: static := proc(self :: PFormat, cones :: set(set(integer)))
+        local bigCones, nonBigCones, leafCones, leafCone, cone, maxLeafCones, c1, c2, isMaximal, N, i, k;
+        # First, we compute the big cones. Note that these are neccessarily maximal and there can
+        # be no other maximal big cones.
+        bigCones := select(c -> isBigCone(self, c), cones);
+        # For the leaf cones, the issue is that there may be maximal leaf cones hiding "inside" the cones.
+        # For each of the remaining cones, we compute all the maximal leaf cones it contains.
+        leafCones := {};
+        nonBigCones := cones minus bigCones;
+        for i from 0 to self:-r - 1 do
+            N := add(self:-ns[1..i]);
+            leafCone := {seq(N + k, k = 1 .. self:-ns[i+1])} union {seq(self:-n + k, k = 1 .. self:-m)};
+            leafCones := leafCones union map(c -> c intersect leafCone, nonBigCones);
+        end do;
+        # Remove the ones that are non-maximal
+        maxLeafCones := {};
+        for c1 in leafCones do
+            isMaximal := true;
+            for c2 in bigCones union (leafCones minus {c1}) do
+                if c1 subset c2 then
+                    isMaximal := false;
+                end if;
+            end do;
+            if isMaximal then
+                maxLeafCones := {op(maxLeafCones), c1};
+            end if;
+        end do;
+
+        return bigCones union maxLeafCones;
+    end;
+
     export ModulePrint :: static := proc(self :: PFormat)
         nprintf(cat("PFormat(", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")"));
     end;
@@ -488,13 +523,14 @@ module TVarOne()
 
     local XCones := undefined;
     local maximalXCones := undefined;
+    local isGorensteinVal := undefined;
 
     export ModuleApply :: static := proc()
         Object(TVarOne, _passed);
     end;
 
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne,
-        P :: PMatrix, Sigma :: list(set(integer)))
+        P :: PMatrix, Sigma :: set(set(integer)))
         self:-P := P;
         self:-Sigma := Sigma;
     end;
@@ -503,7 +539,8 @@ module TVarOne()
         if not type(self:-XCones, undefined) then
             self:-XCones;
         else
-            select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
+            self:-XCones := select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
+            self:-XCones;
         end if;
     end;
 
@@ -519,11 +556,21 @@ module TVarOne()
     end;
 
     export getMaximalXCones :: static := proc(self :: TVarOne)
-        select(cone -> isMaximalXCone(self, cone), getXCones(self));
+        if not type(self:-maximalXCones, undefined) then
+            self:-maximalXCones;
+        else
+            self:-maximalXCones := getMaximalXConesFormat(self:-P:-format, self:-Sigma);
+            self:-maximalXCones;
+        end if;
     end;
 
     export isGorenstein :: static := proc(self :: TVarOne)
-      andmap(cone -> isGorensteinForXCone(self:-P, cone), getMaximalXCones(self));
+        if not type(self:-isGorensteinVal, undefined) then
+            self:-isGorensteinVal;
+        else
+            self:-isGorensteinVal := andmap(cone -> isGorensteinForXCone(self:-P, cone), getMaximalXCones(self));
+            self:-isGorensteinVal;
+        end if;
     end;
 
     export ModulePrint :: static := proc(self :: TVarOne)

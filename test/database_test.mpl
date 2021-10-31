@@ -14,11 +14,13 @@ with(CodeTools):
 
 local t, Ps, i, P, numColumns, Sigma, X:
 
-t := time():
+t1 := time():
 
 printf("Parsing and verifying gorenstein_database.txt...\n"):
 
 Ps := parseCSV("../gorenstein_database.txt"):
+
+t2 := time():
 
 printf("Parsing succesfull. Performing gorenstein tests...\n"):
 
@@ -27,11 +29,12 @@ for i from 1 to nops(Ps) do
 
     P := Ps[i];
     numColumns := P:-n + P:-m;
-    Sigma := convert(combinat[powerset]({seq(1..numColumns)}) minus {{seq(1..numColumns)}}, list):
+    Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)}:
     X := TVarOne(P, Sigma);
-    Test(isGorenstein(X), true, label = cat("Row: ", i, ", Gorenstein test")):
+    Test(isGorenstein(X), true, quiet, label = cat("Row: ", i, ", Gorenstein test")):
 
 end do:
 
-t := time() - t:
-printf("Elapsed time = %gs\n", t):
+t3 := time():
+printf("Time for verifying degree matrix : %gs\n", t2 - t1):
+printf("Time for gorentein tests: %gs\n", t3 - t2):
