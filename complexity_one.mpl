@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, parseCSV;
+export PFormat, PMatrix, TVarOne, ImportPMatrixList, ExportPMatrixList;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage;
@@ -589,7 +589,7 @@ module TVarOne()
 end module:
 
 
-parseCSV := proc(fn :: string)
+ImportPMatrixList := proc(fn :: string)
     local CSVData, index_row, i, INDEX_P, INDEX_FORMAT, INDEX_Q, INDEX_ANTICAN, row, format, Ps, P;
     local evaluated_Q, expected_Q, evaluated_antican, expected_antican;
 
@@ -604,7 +604,7 @@ parseCSV := proc(fn :: string)
             INDEX_P := i;
         elif index_row[i] = "Degree matrix" or index_row[i] = "Q" then
             INDEX_Q := i;
-        elif index_row[i] = "Anticanonical class" or index_row[i] = "Antican class" then
+        elif index_row[i] = "Anticanonical class" or index_row[i] = "Antican" then
             INDEX_ANTICAN := i;
         end if;
     end do;
@@ -659,6 +659,31 @@ parseCSV := proc(fn :: string)
     end do;
 
     return Ps;
+
+end proc;
+
+ExportPMatrixList := proc(fn :: string, Ps :: list(PMatrix))
+    local M, numOfFields, P;
+
+    # hard coded for now.
+    numOfFields := 5;
+
+    M := Matrix(nops(Ps) + 1, numOfFields);
+
+    M[1] := Vector([`id`, `Format`, `P`, `Q`, `Antican`]);
+
+    for i from 2 to nops(Ps) + 1 do
+        P := Ps[i-1];
+        M[i,1] := i-1; # id
+        M[i,2] := (P:-format:-ns, P:-format:-m, P:-format:-s); # Format
+        M[i,3] := [seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))]; # Generator Matrix
+        M[i,4] := [seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))]; # Degree Matrix
+        M[i,5] := convert(getAnticanClass(P), list); # Anticanonical Class
+    end do;
+
+    ExportMatrix(fn, M, delimiter = ";"):
+
+    return M;
 
 end proc;
 
