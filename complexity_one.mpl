@@ -406,62 +406,75 @@ module PMatrix()
 
     end;
 
+    export setQ :: static := proc(self :: PMatrix, Q :: Matrix) self:-Q := Q; end proc;
+
+    export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc; 
+
+    export setClassGroup :: static := proc(self :: PMatrix, classGroup :: AGH) self:-classGroup := classGroup; end proc;
+
+    export setPicardNumber :: static := proc(self :: PMatrix, picardNumber :: integer) self:-picardNumber := picardNumber; end proc;
+
+    export setAnticanCoefficients :: static := proc(self :: PMatrix, anitcanCoefficients :: integer) self:-anitcanCoefficients := anitcanCoefficients; end proc;
+
+    export setAnticanClass :: static := proc(self :: PMatrix, anticanClass :: integer) self:-anticanClass := anticanClass; end proc;
+
     export getQ :: static := proc(self :: PMatrix)
         local A;
         # Currently, we rely on MDSpackage for these computations.
         # But they should be reimplemented here eventually.
         if not type(self:-Q, undefined) then
-            self:-Q
+            return self:-Q
         else
             A := AGHP2Q(convert(self, matrix));
-            self:-classGroup := AGHdata(A)[2];
-            self:-Q := Matrix(AGHdata(A)[3]);
-            self:-picardNumber := AGdata(self:-classGroup)[3];
-            self:-Q0 := DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q));
-            self:-Q;
+            setClassGroup(self, AGHdata(A)[2]);
+            setQ(self, Matrix(AGHdata(A)[3]));
+            setPicardNumber(self, AGdata(self:-classGroup)[3]);
+            setQ0(self, DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q)));
+            return self:-Q;
         end if;
     end;
 
     export getQ0 :: static := proc(self :: PMatrix)
         if not type(self:-Q0, undefined) then
-            self:-Q0;
+            return self:-Q0;
         else
             getQ(self);
-            getQ0(self);
+            return getQ0(self);
         end if;
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
         if not type(self:-classGroup, undefined) then
-            self:-classGroup;
+            return self:-classGroup;
         else
             getQ(self);
-            getClassGroup(self);
+            return getClassGroup(self);
         end if;
     end;
 
     export getPicardNumber :: static := proc(self :: PMatrix)
         if not type(self:-picardNumber, undefined) then
-            self:-picardNumber
+            return self:-picardNumber
         else
             getQ(self);
-            getPicardNumber(self);
+            return getPicardNumber(self);
         end if;
     end;
 
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
         if not type(self:-anitcanCoefficients, undefined) then
-            self:-anitcanCoefficients;
+            return self:-anitcanCoefficients;
         else
-            self:-anitcanCoefficients :=
-                [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]
+            setAnitcanCoefficients(self,
+                [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]);
+            return self:-anitcanCoefficients
         end if;
     end;
 
     export getAnticanClass :: static := proc(self :: PMatrix)
         local as, i, anticanVec, d;
         if not type(self:-anticanClass, undefined) then
-            self:-anticanClass;
+            return self:-anticanClass;
         else
             as := getAnticanCoefficients(self);
             anticanVec := add(seq(as[i] * Column(getQ(self), i), i = 1 .. self:-n + self:-m));
@@ -471,6 +484,7 @@ module PMatrix()
                 d := AGdata(getClassGroup(self))[4][i - getPicardNumber(self)];
                 anticanVec[i] := anticanVec[i] mod d;
             end do;
+            setAnticanClass(self, anticanVec);
             return anticanVec;
         end if;
     end;
@@ -564,12 +578,14 @@ module TVarOne()
         end if;
     end;
 
+    export setIsGorenstein :: static := proc(self :: TVarOne, isGorensteinVal :: boolean) self:-isGorensteinVal := isGorensteinVal; end proc;
+
     export isGorenstein :: static := proc(self :: TVarOne)
         if not type(self:-isGorensteinVal, undefined) then
-            self:-isGorensteinVal;
+            return self:-isGorensteinVal;
         else
-            self:-isGorensteinVal := andmap(cone -> isGorensteinForXCone(self:-P, cone), getMaximalXCones(self));
-            self:-isGorensteinVal;
+            setIsGorenstein(self, andmap(cone -> isGorensteinForXCone(self:-P, cone), getMaximalXCones(self)));
+            return self:-isGorensteinVal;
         end if;
     end;
 
