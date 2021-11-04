@@ -551,7 +551,7 @@ module TVarOne()
     (3) P :: PMatrix, where P is a P-Matrix of a C* surface. (NOT YET IMPLEMENTED)
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
-        local numColumns;
+        local numColumns, i;
 
         self:-P := P;
 
@@ -565,7 +565,7 @@ module TVarOne()
             # Input method (2) or (3)
             if getPicardNumber(P) = 1 then
                 numColumns := ColumnDimension(P:-mat);
-                self:-Sigma := {seq({seq(1 .. numCols)} minus {i}, i = 1 .. numCols)};
+                self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             else
                 error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. Therefore, you must provide the fan Sigma as input.";
             end if;

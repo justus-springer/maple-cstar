@@ -12,8 +12,6 @@ with(convex):
 with(ComplexityOne):
 with(CodeTools):
 
-local t, Ps, i, P, numColumns, Sigma, X:
-
 t1 := time():
 
 printf("Parsing and verifying gorenstein_database.txt...\n"):
@@ -26,13 +24,7 @@ printf("Parsing succesfull. Performing gorenstein tests...\n"):
 
 # Check the gorenstein condition for every P-matrix.
 for i from 1 to nops(Ps) do
-
-    P := Ps[i];
-    numColumns := P:-n + P:-m;
-    Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)}:
-    X := TVarOne(P, Sigma);
-    Test(isGorenstein(X), true, quiet, label = cat("Row: ", i, ", Gorenstein test")):
-
+    Test(isGorenstein(TVarOne(Ps[i])), true, quiet, label = cat("Row: ", i, ", Gorenstein test")):
 end do:
 
 t3 := time():
