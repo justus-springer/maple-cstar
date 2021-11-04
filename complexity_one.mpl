@@ -456,8 +456,8 @@ module PMatrix()
         if not type(self:-picardNumber, undefined) then
             return self:-picardNumber
         else
-            getQ(self);
-            return getPicardNumber(self);
+            setPicardNumber(ColumnDimension(self:-mat) - RowDimension(self:-mat));
+            return self:-picardNumber
         end if;
     end;
 
@@ -543,10 +543,33 @@ module TVarOne()
         Object(TVarOne, _passed);
     end;
 
-    export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne,
-        P :: PMatrix, Sigma :: set(set(integer)))
+    (*
+    This method creates a T-Variety of complexity one from various kinds of data. It supports three
+    different input methods:
+    (1) P :: PMatrix, Sigma :: set(set(integer)).
+    (2) P :: PMatrix, where the picard number of P is one.
+    (3) P :: PMatrix, where P is a P-Matrix of a C* surface. (NOT YET IMPLEMENTED)
+    *)
+    export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
+        local numColumns;
+
         self:-P := P;
-        self:-Sigma := Sigma;
+
+        if _npassed = 4 then
+            # Input method (1)
+            if not type(_passed[4], set(set(integer))) then
+                error "Expected second argument to be of type: set(set(integer)).";
+            end if;
+            self:-Sigma := _passed[4];
+        else
+            # Input method (2) or (3)
+            if getPicardNumber(P) = 1 then
+                numColumns := ColumnDimension(P:-mat);
+                self:-Sigma := {seq({seq(1 .. numCols)} minus {i}, i = 1 .. numCols)};
+            else
+                error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. Therefore, you must provide the fan Sigma as input.";
+            end if;
+        end if;
     end;
 
     export getXCones :: static := proc(self :: TVarOne)
