@@ -18,7 +18,7 @@ t1 := time():
 
 printf("Parsing and verifying gorenstein_database.txt...\n"):
 
-Ps := ImportPMatrixList("../gorenstein_database.txt"):
+Ps := ImportPMatrixList("../databases/andreas_threefolds.txt"):
 
 t2 := time():
 

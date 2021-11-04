@@ -410,7 +410,7 @@ module PMatrix()
 
     export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc; 
 
-    export setClassGroup :: static := proc(self :: PMatrix, classGroup :: AGH) self:-classGroup := classGroup; end proc;
+    export setClassGroup :: static := proc(self :: PMatrix, classGroup :: AG) self:-classGroup := classGroup; end proc;
 
     export setPicardNumber :: static := proc(self :: PMatrix, picardNumber :: integer) self:-picardNumber := picardNumber; end proc;
 
