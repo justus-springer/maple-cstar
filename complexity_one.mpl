@@ -414,9 +414,9 @@ module PMatrix()
 
     export setPicardNumber :: static := proc(self :: PMatrix, picardNumber :: integer) self:-picardNumber := picardNumber; end proc;
 
-    export setAnticanCoefficients :: static := proc(self :: PMatrix, anitcanCoefficients :: integer) self:-anitcanCoefficients := anitcanCoefficients; end proc;
+    export setAnticanCoefficients :: static := proc(self :: PMatrix, anitcanCoefficients) self:-anitcanCoefficients := anitcanCoefficients; end proc;
 
-    export setAnticanClass :: static := proc(self :: PMatrix, anticanClass :: integer) self:-anticanClass := anticanClass; end proc;
+    export setAnticanClass :: static := proc(self :: PMatrix, anticanClass) self:-anticanClass := anticanClass; end proc;
 
     export getQ :: static := proc(self :: PMatrix)
         local A;
@@ -465,7 +465,7 @@ module PMatrix()
         if not type(self:-anitcanCoefficients, undefined) then
             return self:-anitcanCoefficients;
         else
-            setAnitcanCoefficients(self,
+            setAnticanCoefficients(self,
                 [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]);
             return self:-anitcanCoefficients
         end if;
