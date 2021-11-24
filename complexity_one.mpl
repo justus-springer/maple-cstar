@@ -493,11 +493,18 @@ module PMatrix()
     Compute the linear form solving the Gorenstein condition on a given X-cone,
     if there are any.
     *)
-    export getLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
+    export getIntegerLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
         local as, u, us, i, j, sol;
         as := getAnticanCoefficients(self);
         us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
         return isolve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
+    end;
+
+    export getLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
+        local as, u, us, i, j, sol;
+        as := getAnticanCoefficients(self);
+        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        return solve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
     end;
 
     (*
@@ -508,7 +515,7 @@ module PMatrix()
     anticanonical class.
     *)
     export isGorensteinForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-        return evalb(getLinearFormForXCone(self, cone) <> NULL);
+        return evalb(getIntegerLinearFormForXCone(self, cone) <> NULL);
     end;
 
     export ModulePrint :: static := proc(self :: PMatrix)
@@ -558,7 +565,7 @@ module TVarOne()
     (3) P :: PMatrix, where P is a P-Matrix of a C* surface. (NOT YET IMPLEMENTED)
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
-        local numColumns, i;
+        local numColumns, i, cones, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
 
         self:-P := P;
 
@@ -573,6 +580,26 @@ module TVarOne()
             if getPicardNumber(P) = 1 then
                 numColumns := ColumnDimension(P:-mat);
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
+            elif P:-s = 1 then
+                # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
+                cones := {};
+                sigma_plus := {seq(add(P:-ns[1 .. i]) + 1, i = 0 .. P:-r - 1)};
+                sigma_minus := {seq(add(P:-ns[1 .. i]) - 1, i = 1 .. P:-r)};
+                if P:-m = 0 then
+                  # Case (e-e)
+                elif P:-m = 1 then
+                  if P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = 1 then
+                    # Case (p-e)
+                  elif P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1 then
+                    # Case (e-p)
+                  else
+                    error "oh no";
+                  end if;
+                elif P:-m = 2 then
+                  # Case (p-p)
+                else
+                  error "oh no";
+                end if;
             else
                 error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. Therefore, you must provide the fan Sigma as input.";
             end if;
