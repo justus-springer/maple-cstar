@@ -78,7 +78,7 @@ module PFormat()
 
     (*
     Given a list of cones, compute the list X-cones which are maximal with respect to a given PFormat.
-    This algorithm is experimental and hasn't been properly tested yet.
+    This algorithm is experimental and hasnt been properly tested yet.
     *)
     export getMaximalXConesFormat :: static := proc(self :: PFormat, cones :: set(set(integer)))
         local bigCones, nonBigCones, leafCones, leafCone, cone, maxLeafCones, c1, c2, isMaximal, N, i, k;
@@ -182,9 +182,9 @@ module PMatrix()
     if this matrix fulfills the properties of a P-Matrix, i.e. if it has the correct shape,
     the columns are primitive and they generate the whole space as a cone. In method (3), the
     expected P-Format is specified and will be checked against P. In method (4), only the dimension
-    of the acting torus `s` is specified (the dimension of the overall variety will be `s+1`). 
-    In method (5), only the matrix is provided. Note that this comes with some ambiguity: If we don't 
-    know how many exponent vectors there are, hence we don't know where the upper block of `P` ends and 
+    of the acting torus `s` is specified (the dimension of the overall variety will be `s+1`).
+    In method (5), only the matrix is provided. Note that this comes with some ambiguity: If we don't
+    know how many exponent vectors there are, hence we don't know where the upper block of `P` ends and
     the d-block starts. In this case, we can only make an educated guess based on the entries of `P`.
 
     TODO: Explain more about input method (5).
@@ -283,7 +283,7 @@ module PMatrix()
         elif type(_passed[3], integer) then
             # Input method (4)
             # s :: integer, P :: Matrix
-        
+
             if _npassed < 4 then
                 error "Not enough arguments. Expected input: integer, Matrix";
             end if;
@@ -408,7 +408,7 @@ module PMatrix()
 
     export setQ :: static := proc(self :: PMatrix, Q :: Matrix) self:-Q := Q; end proc;
 
-    export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc; 
+    export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc;
 
     export setClassGroup :: static := proc(self :: PMatrix, classGroup :: AG) self:-classGroup := classGroup; end proc;
 
@@ -456,7 +456,7 @@ module PMatrix()
         if not type(self:-picardNumber, undefined) then
             return self:-picardNumber
         else
-            setPicardNumber(ColumnDimension(self:-mat) - RowDimension(self:-mat));
+            setPicardNumber(self, ColumnDimension(self:-mat) - RowDimension(self:-mat));
             return self:-picardNumber
         end if;
     end;
@@ -490,6 +490,17 @@ module PMatrix()
     end;
 
     (*
+    Compute the linear form solving the Gorenstein condition on a given X-cone,
+    if there are any.
+    *)
+    export getLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
+        local as, u, us, i, j, sol;
+        as := getAnticanCoefficients(self);
+        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        return isolve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
+    end;
+
+    (*
     Checks whether the variety of a given PMatrix satisfies the Gorenstein condition
     with respect to a given X-cone. The Gorenstein condition is satisfied if
     the system of equations {<u,v_i> = a_i, i in cone} has an integer solution
@@ -497,11 +508,7 @@ module PMatrix()
     anticanonical class.
     *)
     export isGorensteinForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-        local as, u, us, i, j, sol;
-        as := getAnticanCoefficients(self);
-        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
-        sol := isolve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
-        return evalb(sol <> NULL);
+        return evalb(getLinearFormForXCone(self, cone) <> NULL);
     end;
 
     export ModulePrint :: static := proc(self :: PMatrix)
@@ -674,7 +681,7 @@ ImportPMatrixList := proc(fn :: string)
         end try;
         Ps := [op(Ps), P];
 
-        if not 'nochecks' in { _passed } then
+        if 'verify' in { _passed } then
             # Test if the degree matrix is as expected
             if type(INDEX_Q, integer) then
                 expected_Q := parse(row[INDEX_Q]):
@@ -692,7 +699,7 @@ ImportPMatrixList := proc(fn :: string)
                     error "In %-1 row: Antican check failed. Evaluated: %2. Given: %3.", i, evaluated_antican, expected_antican;
                 end if;
             end if;
-            
+
         end if;
 
     end do;
