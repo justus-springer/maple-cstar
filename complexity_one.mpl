@@ -422,60 +422,48 @@ module PMatrix()
         local A;
         # Currently, we rely on MDSpackage for these computations.
         # But they should be reimplemented here eventually.
-        if not type(self:-Q, undefined) then
-            return self:-Q
-        else
+        if type(self:-Q, undefined) then
             A := AGHP2Q(convert(self, matrix));
             setClassGroup(self, AGHdata(A)[2]);
             setQ(self, Matrix(AGHdata(A)[3]));
             setPicardNumber(self, AGdata(self:-classGroup)[3]);
             setQ0(self, DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q)));
-            return self:-Q;
         end if;
+        return self:-Q;
     end;
 
     export getQ0 :: static := proc(self :: PMatrix)
-        if not type(self:-Q0, undefined) then
-            return self:-Q0;
-        else
+        if type(self:-Q0, undefined) then
             getQ(self);
-            return getQ0(self);
         end if;
+        return self:-Q0;
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
-        if not type(self:-classGroup, undefined) then
-            return self:-classGroup;
-        else
+        if type(self:-classGroup, undefined) then
             getQ(self);
-            return getClassGroup(self);
         end if;
+        return self:-classGroup;
     end;
 
     export getPicardNumber :: static := proc(self :: PMatrix)
-        if not type(self:-picardNumber, undefined) then
-            return self:-picardNumber
-        else
+        if type(self:-picardNumber, undefined) then
             setPicardNumber(self, ColumnDimension(self:-mat) - RowDimension(self:-mat));
-            return self:-picardNumber
         end if;
+        return self:-picardNumber;
     end;
 
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
-        if not type(self:-anitcanCoefficients, undefined) then
-            return self:-anitcanCoefficients;
-        else
+        if type(self:-anitcanCoefficients, undefined) then
             setAnticanCoefficients(self,
                 [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]);
-            return self:-anitcanCoefficients
         end if;
+        return self:-anitcanCoefficients;
     end;
 
     export getAnticanClass :: static := proc(self :: PMatrix)
         local as, i, anticanVec, d;
-        if not type(self:-anticanClass, undefined) then
-            return self:-anticanClass;
-        else
+        if type(self:-anticanClass, undefined) then
             as := getAnticanCoefficients(self);
             anticanVec := add(seq(as[i] * Column(getQ(self), i), i = 1 .. self:-n + self:-m));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
@@ -485,21 +473,14 @@ module PMatrix()
                 anticanVec[i] := anticanVec[i] mod d;
             end do;
             setAnticanClass(self, anticanVec);
-            return anticanVec;
         end if;
+        return self:-anticanClass;
     end;
 
     (*
     Compute the linear form solving the Gorenstein condition on a given X-cone,
     if there are any.
     *)
-    export getIntegerLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-        local as, u, us, i, j, sol;
-        as := getAnticanCoefficients(self);
-        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
-        return isolve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
-    end;
-
     export getLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
         local as, u, us, i, j, sol;
         as := getAnticanCoefficients(self);
@@ -508,14 +489,12 @@ module PMatrix()
     end;
 
     (*
-    Checks whether the variety of a given PMatrix satisfies the Gorenstein condition
-    with respect to a given X-cone. The Gorenstein condition is satisfied if
-    the system of equations {<u,v_i> = a_i, i in cone} has an integer solution
-    vector u. Here, v_i is the ith column of P and the a_i are the coefficents of the
-    anticanonical class.
+    Computes the gorenstein index of a given X-cone. 
+    That is, the smallest positive integer n such that n*K_X is Cartier on the toric orbit 
+    defined by the X-cone, where K_X is the anticanonical divisor.
     *)
-    export isGorensteinForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-        return evalb(getIntegerLinearFormForXCone(self, cone) <> NULL);
+    export gorensteinIndexForXCone :: statix := proc(self :: PMatrix, cone :: set(integer))
+        return ilcm(seq(denom(rhs(e)), e in getLinearFormForXCone(self, cone)));
     end;
 
     export ModulePrint :: static := proc(self :: PMatrix)
@@ -551,6 +530,7 @@ module TVarOne()
 
     local XCones := undefined;
     local maximalXCones := undefined;
+    local gorensteinIndex := undefined;
     local isGorensteinVal := undefined;
 
     export ModuleApply :: static := proc()
@@ -637,12 +617,10 @@ module TVarOne()
     end;
 
     export getXCones :: static := proc(self :: TVarOne)
-        if not type(self:-XCones, undefined) then
-            self:-XCones;
-        else
+        if type(self:-XCones, undefined) then
             self:-XCones := select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
-            self:-XCones;
         end if;
+        return self:-XCones;
     end;
 
     export isMaximalXCone :: static := proc(self :: TVarOne, cone :: set(integer))
@@ -656,37 +634,71 @@ module TVarOne()
         return true;
     end;
 
-    export getMaximalXCones :: static := proc(self :: TVarOne)
-        if not type(self:-maximalXCones, undefined) then
-            self:-maximalXCones;
-        else
-            self:-maximalXCones := getMaximalXConesFormat(self:-P:-format, self:-Sigma);
-            self:-maximalXCones;
-        end if;
+    export setMaximalXCones :: static := proc(self :: TVarOne, maximalXCones :: set(set(integer))) 
+        self:-maximalXCones := maximalXCones;
     end;
 
-    export setIsGorenstein :: static := proc(self :: TVarOne, isGorensteinVal :: boolean) self:-isGorensteinVal := isGorensteinVal; end proc;
-
-    export isGorenstein :: static := proc(self :: TVarOne)
-        if not type(self:-isGorensteinVal, undefined) then
-            return self:-isGorensteinVal;
-        else
-            setIsGorenstein(self, andmap(cone -> isGorensteinForXCone(self:-P, cone), getMaximalXCones(self)));
-            return self:-isGorensteinVal;
+    export getMaximalXCones :: static := proc(self :: TVarOne)
+        if type(self:-maximalXCones, undefined) then
+            setMaximalXCones(self, getMaximalXConesFormat(self:-P:-format, self:-Sigma));
         end if;
+        return self:-maximalXCones;
+    end;
+
+    export setIsGorensteinVal :: static := proc(self :: TVarOne, isGorensteinVal :: boolean) 
+        self:-isGorensteinVal := isGorensteinVal;
+    end proc;
+
+    export setGorensteinIndex :: static := proc(self :: TVarOne, gorensteinIndex :: integer) 
+        self:-gorensteinIndex := gorensteinIndex;
+        setIsGorensteinVal(self, evalb(gorensteinIndex = 1));
+    end proc;
+
+    export getGorensteinIndex :: static := proc(self :: TVarOne)
+        if type(self:-gorensteinIndex, undefined) then
+            setGorensteinIndex(self, ilcm(seq(gorensteinIndexForXCone(self:-P, cone), cone in getMaximalXCones(self))));
+        end if;
+        return self:-gorensteinIndex;
+    end;
+
+    (*
+    Checks whether the variety is gorenstein.
+    *)
+    export isGorenstein :: static := proc(self :: TVarOne)
+        if type(self:-isGorensteinVal, undefined) then
+            # This method could simply be implemented by computing the gorenstein index and
+            # asking if it is equal to one. However, if we are not interested in the gorenstein index
+            # and just want to know if it's gorenstein or not, we can just look at the individual
+            # gorenstein indices of the X-cones and terminate as soon as we find one X-cone, where it's
+            # not equal to one. This has the advantage that if the variety is not Gorenstein, we find that
+            # out early, without computing gorenstein indices for *every* X-cone.
+            for cone in getMaximalXCones(self) do
+                if gorensteinIndexForXCone(self:-P, cone) <> 1 then
+                    # Not gorenstein, we are done.
+                    setIsGorensteinVal(self, false);
+                    break;
+                end if;
+            end do;
+            if type(self:-isGorensteinVal, undefined) then
+                setIsGorensteinVal(self, true);
+                setGorensteinIndex(self, 1);
+            end if;
+        end if;
+        return self:-isGorensteinVal;
     end;
 
     export ModulePrint :: static := proc(self :: TVarOne)
         nprintf(cat("TVarOne(dim = ", self:-P:-s + 1,
-          ", picardNum = ", getPicardNumber(self:-P),
-          ", w = ", convert(getAnticanClass(self:-P), list), ")")); # "
+          ", lss = ", self:-P:-lss,
+          ", Sigma = ", self:-Sigma));
     end;
 
     export TVarOneInfo :: static := proc(self :: TVarOne)
-        local maximalXCones, isGorenstein;
+        local maximalXCones, gorensteinIndex, gorenstein;
         PMatrixInfo(self:-P);
         print(maximalXCones = getMaximalXCones(self));
-        print(isGorenstein = :-isGorenstein(self));
+        print(gorensteinIndex = getGorensteinIndex(self));
+        print(gorenstein = isGorenstein(self));
     end;
 
 end module:
