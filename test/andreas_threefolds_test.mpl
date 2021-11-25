@@ -1,5 +1,5 @@
 (*
-This file reads in all of the P-matrices in `gorenstein_database.csv` and verifies that all
+This file reads in all of the P-matrices in `databases/andreas_threefolds.txt` and verifies that all
 of the entries are correct.
 
 Currently, we only test if the degree matrix, anticanonical class and the Picard number 

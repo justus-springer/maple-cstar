@@ -562,10 +562,10 @@ module TVarOne()
     different input methods:
     (1) P :: PMatrix, Sigma :: set(set(integer)).
     (2) P :: PMatrix, where the picard number of P is one.
-    (3) P :: PMatrix, where P is a P-Matrix of a C* surface. (NOT YET IMPLEMENTED)
+    (3) P :: PMatrix, where P is a P-Matrix of a C* surface.
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
-        local numColumns, i, cones, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
+        local numColumns, i, j, k, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
 
         self:-P := P;
 
@@ -576,32 +576,62 @@ module TVarOne()
             end if;
             self:-Sigma := _passed[4];
         else
-            # Input method (2) or (3)
             if getPicardNumber(P) = 1 then
+                # Input method (2)
                 numColumns := ColumnDimension(P:-mat);
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             elif P:-s = 1 then
+                # Input method (3)
                 # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
-                cones := {};
                 sigma_plus := {seq(add(P:-ns[1 .. i]) + 1, i = 0 .. P:-r - 1)};
-                sigma_minus := {seq(add(P:-ns[1 .. i]) - 1, i = 1 .. P:-r)};
+                sigma_minus := {seq(add(P:-ns[1 .. i]), i = 1 .. P:-r)};
+                taus := {seq(seq({add(P:-ns[1 .. i]) + j, add(P:-ns[1 .. i]) + j + 1}, j = 1 .. P:-ns[i+1] - 1) , i = 0 .. P:-r - 1)};
                 if P:-m = 0 then
                   # Case (e-e)
+                  self:-Sigma := {sigma_plus} union taus union {sigma_minus};
                 elif P:-m = 1 then
-                  if P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = 1 then
-                    # Case (p-e)
-                  elif P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1 then
-                    # Case (e-p)
-                  else
-                    error "oh no";
-                  end if;
+                    # Check if the zeros are where they should be
+                    for k from 1 to P:-r + P:-s - 2 do
+                        if not P:-mat[k, P:-n + P:-m] = 0 then
+                            error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p). 
+                                But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                        end if;
+                    end do;
+                    if P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = 1 then
+                        # Case (p-e)
+                        taus_plus := {seq({add(P:-ns[1 .. i]) + 1, P:-n + P:-m}, i = 0 .. P:-r - 1)};
+                        self:-Sigma := taus_plus union taus union {sigma_minus};
+                    elif P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1 then
+                        # Case (e-p)
+                        taus_minus := {seq({add(P:-ns[1 .. i]), P:-n + P:-m} , i = 1 .. P:-r)};
+                        self:-Sigma := {sigma_plus} union taus union taus_minus;
+                    else
+                        error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p). 
+                            But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                    end if;
                 elif P:-m = 2 then
-                  # Case (p-p)
+                    # Check if the zeros are where they should be
+                    for k from 1 to P:-r + P:-s - 2 do
+                        if not (P:-mat[k, P:-n + P:-m - 1] = 0 and P:-mat[k, P:-n + P:-m] = 0) then
+                            error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p).
+                                But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                        end if;
+                    end do;
+                    # Check if there is +1 and -1 in the correct places
+                    if not (P:-mat[P:-r - 1 + P:-s, P:-n + P:-m - 1] = 1 and P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1) then
+                        error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p).
+                            But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                    end if;
+                    # Case (p-p)
+                    taus_plus := {seq({add(P:-ns[1 .. i]) + 1, P:-n + P:-m - 1}, i = 0 .. P:-r - 1)};
+                    taus_minus := {seq({add(P:-ns[1 .. i]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    self:-Sigma := taus_plus union taus union taus_minus;
                 else
-                  error "oh no";
+                  error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
                 end if;
             else
-                error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. Therefore, you must provide the fan Sigma as input.";
+                error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. 
+                    Therefore, you must provide the fan Sigma as input.";
             end if;
         end if;
     end;
@@ -736,7 +766,7 @@ ImportPMatrixList := proc(fn :: string)
 end proc;
 
 ExportPMatrixList := proc(fn :: string, Ps :: list(PMatrix))
-    local M, numOfFields, P;
+    local M, numOfFields, P, i;
 
     # hard coded for now.
     numOfFields := 5;
