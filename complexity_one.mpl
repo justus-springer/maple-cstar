@@ -131,6 +131,7 @@ module PMatrix()
     local classGroup := undefined;
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
+    local movingCone := undefined;
 
     export setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
@@ -418,6 +419,8 @@ module PMatrix()
 
     export setAnticanClass :: static := proc(self :: PMatrix, anticanClass) self:-anticanClass := anticanClass; end proc;
 
+    export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
+
     export getQ :: static := proc(self :: PMatrix)
         local A;
         # Currently, we rely on MDSpackage for these computations.
@@ -498,21 +501,26 @@ module PMatrix()
     end;
 
     (*
-    Tests whether there exists a Fano variety corresponding to this P-matrix.
-    This equivalent to checking whether the anticanonical class is contained in the 
+    Computes the moving cone associated to a P-Matrix.
+    This is the intersection of all images of facets of the positive orthant under Q.
+    *)
+    export getMovingCone :: static := proc(self :: PMatrix)
+        local Q0, cones;
+        if type(self:-movingCone, undefined) then
+            Q0 := getQ0(self);
+            cones := seq(poshull(seq(Column(Q0, i), i in {seq(1 .. ColumnDimension(Q0))} minus {j})), j = 1 .. ColumnDimension(Q0));
+            self:-setMovingCone(self, intersection(cones));
+        end if;
+        return self:-movingCone;
+    end;
+
+    (*
+    Checks whether there exists a Fano variety coming from this P-Matrix.
+    This is equivalent to checking whether the anticanonical class lies in the
     relative interior of the moving cone.
     *)
     export admitsFanoVariety :: static := proc(self :: PMatrix)
-        local i, j, Q0, a, cone;
-        Q0 := Transpose(Matrix(:-convert(NullSpace(self:-mat), list)));
-        a := getAnticanClass(self);
-        for j from 1 to ColumnDimension(Q0) do
-            cone := poshull(seq(Column(Q0, i), i in {seq(1 .. ColumnDimension(Q0))} minus {j}));
-            if not containsrelint(cone, a) then
-                return false;
-            end if;
-        end do;
-        return true;
+        return containsrelint(getMovingCone(self), getAnticanClass(self));
     end;
 
     export ModulePrint :: static := proc(self :: PMatrix)
