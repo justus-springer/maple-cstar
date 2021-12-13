@@ -493,8 +493,21 @@ module PMatrix()
     That is, the smallest positive integer n such that n*K_X is Cartier on the toric orbit 
     defined by the X-cone, where K_X is the anticanonical divisor.
     *)
-    export gorensteinIndexForXCone :: statix := proc(self :: PMatrix, cone :: set(integer))
+    export gorensteinIndexForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
         return ilcm(seq(denom(rhs(e)), e in getLinearFormForXCone(self, cone)));
+    end;
+
+    export admitsFanoVariety :: static := proc(self :: PMatrix)
+        local i, j, Q0, a, cone;
+        Q0 := getQ0(self);
+        a := getAnticanClass(self);
+        for j from 1 to ColumnDimension(Q0) do
+            cone := poshull(seq(Column(Q0, i), i in {seq(1 .. ColumnDimension(Q0))} minus {j}));
+            if not containsrelint(cone, a) then
+                return false;
+            end if;
+        end do;
+        return true;
     end;
 
     export ModulePrint :: static := proc(self :: PMatrix)
