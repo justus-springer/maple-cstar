@@ -497,9 +497,14 @@ module PMatrix()
         return ilcm(seq(denom(rhs(e)), e in getLinearFormForXCone(self, cone)));
     end;
 
+    (*
+    Tests whether there exists a Fano variety corresponding to this P-matrix.
+    This equivalent to checking whether the anticanonical class is contained in the 
+    relative interior of the moving cone.
+    *)
     export admitsFanoVariety :: static := proc(self :: PMatrix)
         local i, j, Q0, a, cone;
-        Q0 := getQ0(self);
+        Q0 := Transpose(Matrix(:-convert(NullSpace(self:-mat), list)));
         a := getAnticanClass(self);
         for j from 1 to ColumnDimension(Q0) do
             cone := poshull(seq(Column(Q0, i), i in {seq(1 .. ColumnDimension(Q0))} minus {j}));
