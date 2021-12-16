@@ -528,13 +528,14 @@ module PMatrix()
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
-        local P, Q, picardNumber, classGroup, anticanClass;
+        local P, Q, picardNumber, classGroup, anticanClass, admitsFano;
         print(P = self:-mat);
         nprintf(cat("Format: ", self:-ns, ", m = ", self:-m, ", s = ", self:-s)); #"
         print(Q = getQ(self));
         print(classGroup = getClassGroup(self));
         print(picardNumber = getPicardNumber(self));
         print(anticanClass = getAnticanClass(self));
+        print(admitsFano = admitsFanoVariety(self));
     end;
 
     export convert :: static := proc(self :: PMatrix, toType, $)
