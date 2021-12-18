@@ -172,23 +172,17 @@ module PMatrix()
     (2) lss :: list(list(integer)), d :: Matrix.
     (3) format :: PFormat, P :: Matrix.
     (4) s :: integer, P :: Matrix
-    (5) P :: Matrix (NOT YET IMPLEMMENTED)
 
     In input method (1) and (2), `lss` is the list of exponent vectors of relations
     of the Cox Ring. These make up the first `r-1` rows of the PMatrix. The lower
     `s` rows have to be provided the matrix `d`. In method (2), the format of the matrix
     is inferred from the given data.
 
-    In methods (3), (4) and (5), the P-Matrix is directly specified. It will be checked
+    In methods (3) and (4), the P-Matrix is directly specified. It will be checked
     if this matrix fulfills the properties of a P-Matrix, i.e. if it has the correct shape,
     the columns are primitive and they generate the whole space as a cone. In method (3), the
     expected P-Format is specified and will be checked against P. In method (4), only the dimension
     of the acting torus `s` is specified (the dimension of the overall variety will be `s+1`).
-    In method (5), only the matrix is provided. Note that this comes with some ambiguity: If we don't
-    know how many exponent vectors there are, hence we don't know where the upper block of `P` ends and
-    the d-block starts. In this case, we can only make an educated guess based on the entries of `P`.
-
-    TODO: Explain more about input method (5).
 
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
