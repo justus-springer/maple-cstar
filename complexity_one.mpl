@@ -35,7 +35,63 @@ module PFormat()
     end;
 
     (*
-    Checks whether a given cone `cone` is big with respect to a given PFormat.
+    EXPLANATION ABOUT INDEXING.
+
+    There are two different indexing techniques when it comes to labeling columns of a P-Matrix.
+    The first one labels them according to the decomposition into leaf cones. Here, a
+    column from the L-Block is labeled by a pair (i,j), where 1 <= i <= r and 1 <= j <= ns[i].
+    A column from the d-block is labeled by a single number between 1 and m. However, it is
+    sometimes useful to instead index all columns by a single number between 1 and n + m instead
+    of the two-dimensional labeling. The following two functions translate one labeling to another.
+    In the tuple labeling, we use the convention that a tuple (-1, k) refers to the k-th column
+    in the d-block, where k is between 1 and m.
+    *)
+
+    (*
+    Translate a single index 1 <= k <= n into a two-dimensional index (i,j), where 1 <= i <= r
+    and 1 <= j <= ns[i]. An index n+1 <= k <= n+m is mapped to (-1, k - n).
+    See above for more explanation.
+    *)
+    export singleToDoubleIndex :: static := proc(self :: PFormat, k_ :: integer)
+        local i, k;
+        k := k_;
+        if k < 1 or k > self:-n + self:-m then
+            error "index out of range: k must be between 1 and n + m = %1. Given: %2", self:-n + self:-m, k;
+        end if;
+        if k > self:-n then
+            return -1, k - self:-n;
+        end if;
+        i := 0;
+        while k > 0 do
+            i++;
+            k -= self:-ns[i];
+        end do; 
+        return i, k + self:-ns[i];
+    end proc:
+
+    (*
+    Translate a two-dimensional index (i,j), where 1 <= i <= r and 1 <= j <= ns[i] into a single
+    index 1 <= k <= n. A pair (-1, j) is mapped to the single index n + j.
+    See above for more explanation.
+    *)
+    export doubleToSingleIndex :: static := proc(self :: PFormat, i :: integer, j :: integer)
+        if i = -1 then
+            if j < 1 or j > self:-m then
+                error "index out of range: i = -1, hence j must be between 1 and m = %1. Given: %2", self:-m, j;
+            end if;
+            return self:-n + j;
+        end if;
+        if i < 1 or i > self:-r then
+            error "index out of range: i must either be -1 or between 1 and r = %1. Given: %2.", self:-r, i;
+        end if;
+        if j < 1 or j > self:-ns[i] then
+            error "index out of range: j must be between 1 and ns[i] = %1. Given: %2.", self:-ns[i], j;
+        end if;
+        return add(self:-ns[1 .. i-1]) + j
+    end proc:
+
+    (*
+    Checks whether a given `cone` is big with respect to a given PFormat.
     Here, a cone is called big if for every i = 0,...,r-1, we have
     {N, ..., N+ns[i+1]} ∩ cone ≠ {}, where N = ns[1] + ... + ns[i].
     *)
@@ -69,7 +125,7 @@ module PFormat()
     end proc:
 
     (*
-    Checks whether a given `cone` is an X-cone with respect to a given P-matrix format `nL, m`.
+    Checks whether a given `cone` is an X-cone with respect to a given P-matrix format.
     Here, a cone is called an X-cone, if it is either a leaf cone or a big cone.
     *)
     export isXCone :: static := proc(self :: PFormat, cone :: set(integer))
@@ -78,7 +134,6 @@ module PFormat()
 
     (*
     Given a list of cones, compute the list X-cones which are maximal with respect to a given PFormat.
-    This algorithm is experimental and hasnt been properly tested yet.
     *)
     export getMaximalXConesFormat :: static := proc(self :: PFormat, cones :: set(set(integer)))
         local bigCones, nonBigCones, leafCones, leafCone, cone, maxLeafCones, c1, c2, isMaximal, N, i, k;
@@ -579,10 +634,12 @@ module TVarOne()
         else
             if getPicardNumber(P) = 1 then
                 # Input method (2)
+                # This means, the picard number of X is one.
                 numColumns := ColumnDimension(P:-mat);
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             elif P:-s = 1 then
                 # Input method (3)
+                # This means, X is a C* surface.
                 # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
                 sigma_plus := {seq(add(P:-ns[1 .. i]) + 1, i = 0 .. P:-r - 1)};
                 sigma_minus := {seq(add(P:-ns[1 .. i]), i = 1 .. P:-r)};
