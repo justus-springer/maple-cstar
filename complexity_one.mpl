@@ -572,6 +572,16 @@ module PMatrix()
         return containsrelint(getMovingCone(self), getAnticanClass(self));
     end;
 
+    (*
+    Computes the slope of column in a P-matrix of a C*-surface.
+    *)
+    export getSlope :: static := proc(self :: PMatrix, i :: integer, j :: integer)
+        if self:-s <> 1 then
+            error "getSlope is only defined for P-Matrices corresponding to C*-surfaces, i.e. s has to be 1.";
+        end if;
+        return self:-d[1, doubleToSingleIndex(self:-format, i, j)] / self:-lss[i, j];
+    end proc;
+
     export ModulePrint :: static := proc(self :: PMatrix)
         nprintf(cat("PMatrix(", self:-lss, ", m = ", self:-m, ", s = ", self:-s, ")"));
     end;
@@ -621,7 +631,7 @@ module TVarOne()
     (3) P :: PMatrix, where P is a P-Matrix of a C* surface.
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
-        local numColumns, i, j, k, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
+        local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
 
         self:-P := P;
 
@@ -641,9 +651,19 @@ module TVarOne()
                 # Input method (3)
                 # This means, X is a C* surface.
                 # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
-                sigma_plus := {seq(add(P:-ns[1 .. i]) + 1, i = 0 .. P:-r - 1)};
-                sigma_minus := {seq(add(P:-ns[1 .. i]), i = 1 .. P:-r)};
-                taus := {seq(seq({add(P:-ns[1 .. i]) + j, add(P:-ns[1 .. i]) + j + 1}, j = 1 .. P:-ns[i+1] - 1) , i = 0 .. P:-r - 1)};
+                
+                ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
+                    (j1, j2) -> getSlope(P, i, j1) > getSlope(P, i, j2)), 
+                    i = 1 .. P:-r)];
+                
+                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,1]) , i = 1 .. P:-r)};
+                sigma_minus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]) , i = 1 .. P:-r)};
+                
+                taus := {seq(seq({
+                    doubleToSingleIndex(P:-format, i, ordered_indices[i,j]), 
+                    doubleToSingleIndex(P:-format, i, ordered_indices[i,j+1])}, 
+                    j = 1 .. P:-ns[i] - 1), i = 1 .. P:-r)};
+                
                 if P:-m = 0 then
                   # Case (e-e)
                   self:-Sigma := {sigma_plus} union taus union {sigma_minus};
@@ -657,11 +677,11 @@ module TVarOne()
                     end do;
                     if P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = 1 then
                         # Case (p-e)
-                        taus_plus := {seq({add(P:-ns[1 .. i]) + 1, P:-n + P:-m}, i = 0 .. P:-r - 1)};
+                        taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m} , i = 1 .. P:-r)};
                         self:-Sigma := taus_plus union taus union {sigma_minus};
                     elif P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1 then
                         # Case (e-p)
-                        taus_minus := {seq({add(P:-ns[1 .. i]), P:-n + P:-m} , i = 1 .. P:-r)};
+                        taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
                         self:-Sigma := {sigma_plus} union taus union taus_minus;
                     else
                         error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p). 
@@ -681,11 +701,11 @@ module TVarOne()
                             But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
                     end if;
                     # Case (p-p)
-                    taus_plus := {seq({add(P:-ns[1 .. i]) + 1, P:-n + P:-m - 1}, i = 0 .. P:-r - 1)};
-                    taus_minus := {seq({add(P:-ns[1 .. i]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m - 1} , i = 1 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
                     self:-Sigma := taus_plus union taus union taus_minus;
                 else
-                  error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
+                    error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
                 end if;
             else
                 error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. 
