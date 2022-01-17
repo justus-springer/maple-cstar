@@ -674,8 +674,8 @@ module TVarOne()
                     # Check if the zeros are where they should be
                     for k from 1 to P:-r + P:-s - 2 do
                         if not P:-mat[k, P:-n + P:-m] = 0 then
-                            error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p). 
-                                But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                            error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p)."
+                                  "But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
                         end if;
                     end do;
                     if P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = 1 then
@@ -687,21 +687,21 @@ module TVarOne()
                         taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
                         self:-Sigma := {sigma_plus} union taus union taus_minus;
                     else
-                        error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p). 
-                            But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                        error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p)." 
+                              "But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
                     end if;
                 elif P:-m = 2 then
                     # Check if the zeros are where they should be
                     for k from 1 to P:-r + P:-s - 2 do
                         if not (P:-mat[k, P:-n + P:-m - 1] = 0 and P:-mat[k, P:-n + P:-m] = 0) then
-                            error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p).
-                                But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                            error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p)."
+                                  "But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
                         end if;
                     end do;
                     # Check if there is +1 and -1 in the correct places
                     if not (P:-mat[P:-r - 1 + P:-s, P:-n + P:-m - 1] = 1 and P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1) then
-                        error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p).
-                            But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
+                        error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p)."
+                              "But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
                     end if;
                     # Case (p-p)
                     taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m - 1} , i = 1 .. P:-r)};
@@ -711,8 +711,8 @@ module TVarOne()
                     error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
                 end if;
             else
-                error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface. 
-                    Therefore, you must provide the fan Sigma as input.";
+                error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface."
+                      "Therefore, you must provide the fan Sigma as input.";
             end if;
         end if;
     end;
