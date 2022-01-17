@@ -651,12 +651,14 @@ module TVarOne()
                 # Input method (3)
                 # This means, X is a C* surface.
                 # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
+                # It is generalized slightly to support P-Matrices whose columns are
+                # not necessarily slope-ordered.
                 
                 ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
                     (j1, j2) -> getSlope(P, i, j1) > getSlope(P, i, j2)), 
                     i = 1 .. P:-r)];
                 
-                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,1]) , i = 1 .. P:-r)};
+                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), i = 1 .. P:-r)};
                 sigma_minus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]) , i = 1 .. P:-r)};
                 
                 taus := {seq(seq({
