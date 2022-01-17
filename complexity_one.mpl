@@ -546,6 +546,7 @@ module PMatrix()
     defined by the X-cone, where K_X is the anticanonical divisor.
     *)
     export gorensteinIndexForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
+        local e;
         return ilcm(seq(denom(rhs(e)), e in getLinearFormForXCone(self, cone)));
     end;
 
@@ -554,7 +555,7 @@ module PMatrix()
     This is the intersection of all images of facets of the positive orthant under Q.
     *)
     export getMovingCone :: static := proc(self :: PMatrix)
-        local Q0, cones;
+        local Q0, cones, i, j;
         if type(self:-movingCone, undefined) then
             Q0 := getQ0(self);
             cones := seq(poshull(seq(Column(Q0, i), i in {seq(1 .. ColumnDimension(Q0))} minus {j})), j = 1 .. ColumnDimension(Q0));
@@ -755,6 +756,7 @@ module TVarOne()
     end proc;
 
     export getGorensteinIndex :: static := proc(self :: TVarOne)
+        local cone;
         if type(self:-gorensteinIndex, undefined) then
             setGorensteinIndex(self, ilcm(seq(gorensteinIndexForXCone(self:-P, cone), cone in getMaximalXCones(self))));
         end if;
@@ -765,6 +767,7 @@ module TVarOne()
     Checks whether the variety is gorenstein.
     *)
     export isGorenstein :: static := proc(self :: TVarOne)
+        local cone;
         if type(self:-isGorensteinVal, undefined) then
             # This method could simply be implemented by computing the gorenstein index and
             # asking if it is equal to one. However, if we are not interested in the gorenstein index
