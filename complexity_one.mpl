@@ -166,6 +166,14 @@ module PFormat()
         return bigCones union maxLeafCones;
     end;
 
+
+    export `=`::static := proc( l, r, $ )
+        if (_npassed <> 2 or not l::PFormat or not r::PFormat) then
+           return false;
+        end;
+        return l:-ns = r:-ns and l:-m = r:-m and l:-s = r:-s;
+    end;
+
     export ModulePrint :: static := proc(self :: PFormat)
         nprintf(cat("PFormat(", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")"));
     end;
