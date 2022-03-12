@@ -184,7 +184,7 @@ module PMatrix()
     option object;
 
     # These fields are guaranteed to be filled when a PMatrix is created.
-    export format, lss, d, mat;
+    export format, lss, d, mat, P0;
     export r, ns, n, m, s;
 
     # These fields are only computed when needed. Use these getters below for these.
@@ -246,6 +246,7 @@ module PMatrix()
     the columns are primitive and they generate the whole space as a cone. In method (3), the
     expected P-Format is specified and will be checked against P. In method (4), only the dimension
     of the acting torus `s` is specified (the dimension of the overall variety will be `s+1`).
+    This is necessary because `s` cannot be uniquely inferred from `P`.
 
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
@@ -277,6 +278,7 @@ module PMatrix()
                 setFormat(self, _passed[3]);
                 self:-lss := P:-lss;
                 self:-mat := P:-mat;
+                self:-P0 := P:-P0;
                 self:-d := P:-d;
 
             else
@@ -315,6 +317,11 @@ module PMatrix()
                             seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]) + self:-m)], i = 2 .. self:-r),
                         seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
                 self:-mat := Matrix(rows);
+
+                # Only the L-block. This gives P0.
+                rows0 := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
+                            seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]))], i = 2 .. self:-r)];
+                self:-P0 := Matrix(rows0);
 
                 assertColumnsPrimitive(self);
                 assertColumnsGenerateFullCone(self);
@@ -358,6 +365,8 @@ module PMatrix()
             if s > RowDimension(P) - 1 then
                 error "The dimension of the acting torus `s` cannot be greater than the number of rows of `P` minus one.";
             end if;
+
+            self:-P0 := SubMatrix(P, [seq(1 .. RowDimension(P) - s)], [seq(1 .. ColumnDimension(P))]);
 
             r := RowDimension(P) - s + 1;
 
@@ -477,6 +486,10 @@ module PMatrix()
     export setAnticanClass :: static := proc(self :: PMatrix, anticanClass) self:-anticanClass := anticanClass; end proc;
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
+
+    export getP0 :: static := proc(self :: PMatrix)
+
+    end;
 
     export getQ :: static := proc(self :: PMatrix)
         local A;
