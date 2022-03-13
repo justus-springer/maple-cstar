@@ -2,10 +2,10 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, ImportPMatrixList, ExportPMatrixList;
+export PFormat, PMatrix, TVarOne, ImportPMatrixList, ExportPMatrixList, InsertTVarOneListToDatabase, ImportFromDatabase;
 
 ## TODO: Remove dependency on MDSpackage.
-uses LinearAlgebra, MDSpackage;
+uses LinearAlgebra, MDSpackage, Database[SQLite];
 
 module PFormat()
     option object;
@@ -185,7 +185,7 @@ module PMatrix()
 
     # These fields are guaranteed to be filled when a PMatrix is created.
     export format, lss, d, mat, P0;
-    export r, ns, n, m, s;
+    export r, ns, n, m, s, dim;
 
     # These fields are only computed when needed. Use these getters below for these.
     local picardNumber := undefined;
@@ -203,6 +203,7 @@ module PMatrix()
         self:-n := f:-n;
         self:-m := f:-m;
         self:-s := f:-s;
+        self:-dim := f:-s + 1;
     end proc;
 
     # Check if all columns of P are primitive
@@ -251,7 +252,7 @@ module PMatrix()
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, rows, i, j, P, r, s, ns, numZerosBefore;
+        local lss, ls, l, rows, rows0, i, j, P, r, s, ns, numZerosBefore;
         if _npassed = 2 then error "not enough arguments." end if;
 
         if type(_passed[3], 'PFormat') then
@@ -486,10 +487,6 @@ module PMatrix()
     export setAnticanClass :: static := proc(self :: PMatrix, anticanClass) self:-anticanClass := anticanClass; end proc;
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
-
-    export getP0 :: static := proc(self :: PMatrix)
-
-    end;
 
     export getQ :: static := proc(self :: PMatrix)
         local A;
@@ -923,6 +920,100 @@ ExportPMatrixList := proc(fn :: string, Ps :: list(PMatrix))
     ExportMatrix(fn, M, delimiter = ";"):
 
     return M;
+
+end proc;
+
+
+(*
+Inserts a list of Varieties of complexity One into a SQLite database, given by the `connection` parameter.
+The name of the table to insert the varieties into is given by `tableName`.
+*)
+InsertTVarOneListToDatabase := proc(connection, tableName :: string, Xs :: list(TVarOne))
+    local k, X, P, stmt, i;
+
+    for k from 1 to nops(Xs) do
+        X := Xs[k];
+        P := X:-P;
+        stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+        Bind(stmt, 1, P:-r, valuetype = "integer");
+        Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
+        Bind(stmt, 3, P:-n, valuetype = "integer");
+        Bind(stmt, 4, P:-m, valuetype = "integer");
+        Bind(stmt, 5, P:-s, valuetype = "integer");
+        Bind(stmt, 6, convert(P:-lss, string), valuetype = "text");
+        Bind(stmt, 7, convert([seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))], string), valuetype = "text");
+        Bind(stmt, 8, P:-dim, valuetype = "integer");
+        Bind(stmt, 9, getPicardNumber(P), valuetype = "integer");
+        Bind(stmt, 10, convert(AGdata(getClassGroup(P))[4], string), valuetype = "text");
+        Bind(stmt, 11, convert([seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))], string), valuetype = "text");
+        Bind(stmt, 12, convert(convert(getAnticanClass(P), list), string), valuetype = "text");
+        Bind(stmt, 13, convert(X:-Sigma, string), valuetype = "text");
+        Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
+        Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
+        Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
+
+        Step(stmt);
+        Finalize(stmt);
+    end do;
+
+    print(cat("succesfully written ", nops(Xs), " varieties to the database"));
+
+end proc;
+
+ImportFromDatabase := proc(stmt)
+    local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUPTORSION, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
+    local i, clm, result, P, X;
+
+    columns := ColumnNames(stmt);
+    for i from 0 to nops(columns)-1 do
+        clm := columns[i+1];
+        if clm = "s" then
+            INDEX_S := i;
+        elif clm = "P" then
+            INDEX_P := i;
+        elif clm = "dimension" then
+            INDEX_DIMENSION := i;
+        elif clm = "picardNumber" then
+            INDEX_PICARDNUMBER := i;
+        elif clm = "classGroupTorsion" then
+            INDEX_CLASSGROUPTORSION := i;
+        elif clm = "degreeMatrix" then
+            INDEX_DEGREEMATRIX := i;
+        elif clm = "anticanClass" then
+            INDEX_ANTICANCLASS := i;
+        elif clm = "ambientFan" then
+            INDEX_AMBIENTFAN := i;
+        elif clm = "maximalXCones" then
+            INDEX_MAXIMALXCONES := i;
+        elif clm = "gorensteinIndex" then
+            INDEX_GORENSTEININDEX := i;
+        elif clm = "isGorenstein" then
+            INDEX_ISGORENSTEIN := i;
+        end if;
+    end do;
+
+    if not (type(INDEX_S, integer) or type(INDEX_DIMENSION, integer)) then
+        error "Not enough data. You must either provide a column \"s\" (dimension of the acting torus) or a column \"dimension\" (the dimension of the variety = s + 1).";
+    end if;
+
+    if not type(INDEX_S, integer) then
+        error "Not enough data. You must provide a column \"P\" whose entries are the rows of the P-Matrix.";
+    end if;
+
+    result := [];
+    while Step(stmt) = RESULT_ROW do
+        P := PMatrix(Fetch(stmt, INDEX_S), Matrix(parse(Fetch(stmt, INDEX_P))));
+        if type(INDEX_AMBIENTFAN, integer) then
+            X := TVarOne(P, parse(Fetch(stmt, INDEX_AMBIENTFAN)));
+            result := [op(result), X];
+        else
+            result := [op(result), P];
+        end if;
+    end do;
+
+    Finalize(stmt);
+
+    return result;
 
 end proc;
 
