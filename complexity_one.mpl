@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, ImportPMatrixList, ExportPMatrixList, InsertTVarOneListToDatabase, ImportFromDatabase;
+export PFormat, PMatrix, TVarOne, ImportPMatrixList, ExportPMatrixList, InsertTVarOneListToDatabase, ImportTVarOneListFromDatabase;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage, Database[SQLite];
@@ -960,7 +960,7 @@ InsertTVarOneListToDatabase := proc(connection, tableName :: string, Xs :: list(
 
 end proc;
 
-ImportFromDatabase := proc(stmt)
+ImportTVarOneListFromDatabase := proc(stmt)
     local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUPTORSION, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
     local i, clm, result, P, X;
 
