@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, ImportPMatrixList, ExportPMatrixList, InsertTVarOneListToDatabase, ImportTVarOneListFromDatabase;
+export PFormat, PMatrix, TVarOne, ImportTVarOneList, ExportTVarOneList;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage, Database[SQLite];
@@ -824,111 +824,11 @@ module TVarOne()
 
 end module:
 
-
-ImportPMatrixList := proc(fn :: string)
-    local CSVData, index_row, i, INDEX_P, INDEX_FORMAT, INDEX_Q, INDEX_ANTICAN, row, format, Ps, P;
-    local evaluated_Q, expected_Q, evaluated_antican, expected_antican;
-
-    CSVData := ImportMatrix(fn, delimiter = ";");
-    index_row := CSVData[1];
-
-    # First, find out index numbers of the fields by looking at the first row.
-    for i from 1 to Dimension(index_row) do
-        if index_row[i] = "P-Format" or index_row[i] = "Format" then
-            INDEX_FORMAT := i;
-        elif index_row[i] = "Generator matrix" or index_row[i] = "P" then
-            INDEX_P := i;
-        elif index_row[i] = "Degree matrix" or index_row[i] = "Q" then
-            INDEX_Q := i;
-        elif index_row[i] = "Anticanonical class" or index_row[i] = "Antican" then
-            INDEX_ANTICAN := i;
-        end if;
-    end do;
-
-    if not type(INDEX_FORMAT, integer) then
-        error "Not enough data. You must provide a column for the format of the P-Matrix. Please call it \"P-Format\" or \"Format\"";
-    end if;
-
-    (*
-    if not type(INDEX_P, integer) and not (type(INDEX_LSS, integer) or type(INDEX_LSS, integer)) then
-        error "Not enough data. You must either provide a column with the P-Matrix (called \"P\" or \"Generator Matrix\"), or a column for the exponent vectors (called \"Exponent vectors\") and a column with the d-Block (called \"d\" or \"d-Block\")";
-    end if;
-    *)
-
-    if not type(INDEX_P, integer) then
-        error "Not enough data. You must provide a column for the P-Matrix. Please call it \"P\" or \"Generator Matrix\"";
-    end if;
-
-
-    Ps := [];
-    for i from 2 to RowDimension(CSVData) do
-        row := CSVData[i];
-        try
-            format := PFormat(parse(row[INDEX_FORMAT]));
-            P := PMatrix(format, Matrix(parse(row[INDEX_P])));
-        catch:
-            error "Error while reading line %1: %2", i, StringTools[FormatMessage](lastexception[2 .. -1]);
-        end try;
-        Ps := [op(Ps), P];
-
-        if 'verify' in { _passed } then
-            # Test if the degree matrix is as expected
-            if type(INDEX_Q, integer) then
-                expected_Q := parse(row[INDEX_Q]):
-                evaluated_Q := map(x -> convert(x, list), [Row(getQ(P), [seq(1 .. RowDimension(getQ(P)))])]):
-                if expected_Q <> evaluated_Q then
-                    error "In %-1 row: Degree matrix check failed. Evaluated: %2. Given: %3.", i, evaluated_Q, expected_Q;
-                end if;
-            end if;
-
-            if type(INDEX_ANTICAN, integer) then
-                # Test if the anticanonical class is as expected
-                expected_antican := parse(row[INDEX_ANTICAN]):
-                evaluated_antican := convert(getAnticanClass(P), list);
-                if expected_antican <> evaluated_antican then
-                    error "In %-1 row: Antican check failed. Evaluated: %2. Given: %3.", i, evaluated_antican, expected_antican;
-                end if;
-            end if;
-
-        end if;
-
-    end do;
-
-    return Ps;
-
-end proc;
-
-ExportPMatrixList := proc(fn :: string, Ps :: list(PMatrix))
-    local M, numOfFields, P, i;
-
-    # hard coded for now.
-    numOfFields := 5;
-
-    M := Matrix(nops(Ps) + 1, numOfFields);
-
-    M[1] := Vector([`id`, `Format`, `P`, `Q`, `Antican`]);
-
-    for i from 2 to nops(Ps) + 1 do
-        P := Ps[i-1];
-        M[i,1] := i-1; # id
-        M[i,2] := (P:-format:-ns, P:-format:-m, P:-format:-s); # Format
-        M[i,3] := [seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))]; # Generator Matrix
-        M[i,4] := [seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))]; # Degree Matrix
-        M[i,5] := convert(getAnticanClass(P), list); # Anticanonical Class
-    end do;
-
-    ExportMatrix(fn, M, delimiter = ";"):
-
-    return M;
-
-end proc;
-
-
 (*
 Inserts a list of Varieties of complexity One into a SQLite database, given by the `connection` parameter.
 The name of the table to insert the varieties into is given by `tableName`.
 *)
-InsertTVarOneListToDatabase := proc(connection, tableName :: string, Xs :: list(TVarOne))
+ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
     local k, X, P, stmt, i;
 
     for k from 1 to nops(Xs) do
@@ -960,7 +860,7 @@ InsertTVarOneListToDatabase := proc(connection, tableName :: string, Xs :: list(
 
 end proc;
 
-ImportTVarOneListFromDatabase := proc(stmt)
+ImportTVarOneList := proc(stmt)
     local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUPTORSION, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
     local i, clm, result, P, X;
 
