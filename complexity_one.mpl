@@ -85,10 +85,30 @@ module PFormat()
             error "index out of range: i must either be -1 or between 1 and r = %1. Given: %2.", self:-r, i;
         end if;
         if j < 1 or j > self:-ns[i] then
-            error "index out of range: j must be between 1 and ns[i] = %1. Given: %2.", self:-ns[i], j;
+            error "index out of range: j must be between 1 and ns[%1] = %2. Given: %3.", i, self:-ns[i], j;
         end if;
         return add(self:-ns[1 .. i-1]) + j
     end proc:
+
+    (* Helper for `bundleColumnPermutation` *)
+    local bundleColumnPermutationApply := proc(self :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, k :: integer)
+        i, j := singleToDoubleIndex(self, k);
+        if i = -1 then
+            return doubleToSingleIndex(self, -1, rho[j]);
+        end if;
+        newFormat := PFormat([seq(self:-ns[sigma[i]], i = 1 .. self:-r)], self:-m, self:-s);
+        return doubleToSingleIndex(newFormat, sigma[i], taus[sigma[i]][j]);
+    end proc;
+
+    (* 
+    Bundles the data of an admissible column operation into a single permutation of indices {1 .. n+m}. Here:
+    - `sigma` is the permutation of blocks, i.e. a permutation of the numbers {1 .. r},
+    - `taus` is a list of permutations, where `taus[i]` is a permutation of the numbers {1 .. ns[i]} and
+    - `rho` is the permutation of the last `m` columns, i.e. a permutation of the numbers {1 .. m}
+    *)
+    export bundleColumnPermutation := proc(self :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+        return Perm(map(i -> bundleColumnPermutationApply(self, sigma, taus, rho, i), [seq(1 .. self:-n + self:-m)]));
+    end proc;
 
     (*
     Checks whether a given `cone` is big with respect to a given PFormat.
@@ -315,7 +335,7 @@ module PMatrix()
 
                 # Construct the P-matrix from the given data
                 rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
-                            seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]) + self:-m)], i = 2 .. self:-r),
+                            seq(self:-lss[i])), (0 $ add(self:-ns[i+1..self:-r]) + self:-m)], i = 2 .. self:-r),
                         seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
                 self:-mat := Matrix(rows);
 
@@ -599,6 +619,54 @@ module PMatrix()
             error "getSlope is only defined for P-Matrices corresponding to C*-surfaces, i.e. s has to be 1.";
         end if;
         return self:-d[1, doubleToSingleIndex(self:-format, i, j)] / self:-lss[i, j];
+    end proc;
+
+    (* ************************
+    ** ADMISSIBLE OPERATIONS **
+    ***************************)
+
+    (*
+    Creates a new P-Matrix by applying an admissible column operation. The admissible operation is given in three parts:
+    - `sigma` is a permutation of the blocks, i.e. a permutation of the numbers [1 .. r]
+    - `taus` is a list of permutation for the individual blocks. Note that the permutation of
+      the blocks is applied *before* the taus, i.e. `taus[i]` is a permutation of [1 .. ns[sigma[i]]].
+    - `rho` is a permutation of the last `m` columns, i.e. a permutation of the numbers [1 .. m].
+    *)
+    export applyAdmissibleColumnOperation := proc(self :: PMatrix, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+        # First, bundle the column operation into a single permutation of [1 .. n + m]
+        # This is done at the level of the format.
+        bundledPerm := bundleColumnPermutation(self:-format, sigma, taus, rho);
+        # Create the permutation matrix corresponding to `bundledPerm`
+        permutationMatrix := Matrix(self:-n + self:-m, self:-n + self:-m, (i,j) -> if j = bundledPerm[i] then 1 else 0 end if);
+        # We permute the columns of the `d`-block by multiplying from the right with the permutation matrix.
+        newD := P:-d . permutationMatrix;
+        # Finally, we create the permuted lss and put all of it together into a new PMatrix.
+        newLss := [seq([seq(self:-lss[sigma[i]][taus[i][j]], j = 1 .. nops(self:-lss[sigma[i]]))], i = 1 .. self:-r)];
+        return PMatrix(newLss, newD);
+    end proc;
+
+    (* *******************
+    ** EQUIVALENCE TEST **
+    **********************)
+
+    local permutationsOfIndexGroups := proc(grp :: list(integer))
+        local perms, a, res, i;
+        perms := [];
+        for a in map(combinat[permute], nops(grp)) do
+            res := [seq(1 .. max(grp))];
+            for i from 1 to nops(grp) do
+                res[grp[i]] := grp[a[i]];
+            end do;
+            perms := [op(perms), Perm(res)];
+        end do;
+        return perms;
+    end proc;
+
+    export invariantPermutations := proc(ls :: list, compFun := `=`)
+        local indexGroups, a, b;
+        indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
+        permList := map(permutationsOfIndexGroups, indexGroups(ls));
+        return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permList));
     end proc;
 
     export ModulePrint :: static := proc(self :: PMatrix)
