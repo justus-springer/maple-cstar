@@ -7,6 +7,15 @@ export PFormat, PMatrix, TVarOne, ImportTVarOneList, ExportTVarOneList;
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage, Database[SQLite];
 
+(****************
+** CONVENIENCE **
+****************)
+
+local applyPermToList := proc(p :: Perm, ls :: list)
+    local i;
+    return [seq(ls[(p^(-1))[i]], i = 1 .. nops(ls))];
+end proc;
+
 module PFormat()
     option object;
 
@@ -91,12 +100,13 @@ module PFormat()
     end proc:
 
     (* Helper for `bundleColumnPermutation` *)
-    local bundleColumnPermutationApply := proc(self :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, k :: integer)
+    export bundleColumnPermutationApply := proc(self :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, k :: integer)
+        local i, j, newFormat;
         i, j := singleToDoubleIndex(self, k);
         if i = -1 then
             return doubleToSingleIndex(self, -1, rho[j]);
         end if;
-        newFormat := PFormat([seq(self:-ns[sigma[i]], i = 1 .. self:-r)], self:-m, self:-s);
+        newFormat := PFormat(applyPermToList(sigma, self:-ns), self:-m, self:-s);
         return doubleToSingleIndex(newFormat, sigma[i], taus[sigma[i]][j]);
     end proc;
 
@@ -632,17 +642,114 @@ module PMatrix()
       the blocks is applied *before* the taus, i.e. `taus[i]` is a permutation of [1 .. ns[sigma[i]]].
     - `rho` is a permutation of the last `m` columns, i.e. a permutation of the numbers [1 .. m].
     *)
-    export applyAdmissibleColumnOperation := proc(self :: PMatrix, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+    export applyAdmissibleColumnOperation := proc(P :: PMatrix, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+        local bundledPerm, permutationMatrix, newD, newLss, i, j;
         # First, bundle the column operation into a single permutation of [1 .. n + m]
         # This is done at the level of the format.
-        bundledPerm := bundleColumnPermutation(self:-format, sigma, taus, rho);
+        bundledPerm := bundleColumnPermutation(P:-format, sigma, taus, rho);
         # Create the permutation matrix corresponding to `bundledPerm`
-        permutationMatrix := Matrix(self:-n + self:-m, self:-n + self:-m, (i,j) -> if j = bundledPerm[i] then 1 else 0 end if);
+        permutationMatrix := Matrix(P:-n + P:-m, P:-n + P:-m, (i,j) -> if j = bundledPerm[i] then 1 else 0 end if);
         # We permute the columns of the `d`-block by multiplying from the right with the permutation matrix.
         newD := P:-d . permutationMatrix;
-        # Finally, we create the permuted lss and put all of it together into a new PMatrix.
-        newLss := [seq([seq(self:-lss[sigma[i]][taus[i][j]], j = 1 .. nops(self:-lss[sigma[i]]))], i = 1 .. self:-r)];
+        # Finally, we create the permuted list of the lss, by first applying `sigma` to the blocks
+        # and then applying `tau[i]` to `lss[i]`. This is done simultaneoulsy using `zip`.
+        newLss := zip(applyPermToList, taus, applyPermToList(sigma, P:-lss));
         return PMatrix(newLss, newD);
+    end proc;
+
+    (*
+    Creates a new P-Matrix by applying an admissible column operation of type (1), i.e. 
+    permutation of blocks. The parameter `sigma` must be a permutation of the numbers [1 .. r]
+    *)
+    export applyAdmissibleColumnOperation1 := proc(P :: PMatrix, sigma :: Perm)
+        applyAdmissibleColumnOperation(P, sigma, [Perm([]) $ P:-r], Perm([]));
+    end proc;
+
+    (*
+    Creates a new P-Matrix by applying an admissible column operation of type (2), i.e.
+    permutation of column within a given block `i`. The parameter `tau` must be a permutation
+    of the numbers [1 .. ns[i]].
+    *)
+    export applyAdmissibleColumnOperation2 := proc(P :: PMatrix, i :: integer, tau :: Perm)
+        applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ (i-1), tau, Perm([]) $ P:-r - i], Perm([]));
+    end proc;
+
+    (*
+    Creates a new P-Matrix by applying an admissible column operation of type (3), i.e.
+    permutation of the last m rows. The parameter `rho` must be a permutation of the
+    numbers [1 .. m].
+    *)
+    export applyAdmissibleColumnOperation3 := proc(P :: PMatrix, rho :: Perm)
+        applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ P:-r], rho);
+    end proc;
+
+    (******************
+    ** NORMALIZATION **
+    *******************)
+
+    (*
+    Normalizes a P-Matrix by applying admissible column operations.
+    The columns of each block in the resulting P-Matrix are ordered descendingly by the ls,
+    while the blocks themselves are ordered descendingly by size, and blocks of the same size
+    are ordered lexicographically.
+
+    You can obtain the permutation `sigma` of the blocks and the permutations `taus` of the
+    individual blocks by specifying the option `'output' = out`, where `out` is a list of the
+    names 'normalized', 'sigma' and 'taus'.
+
+    *)
+    export normalizePMatrix := proc(P :: PMatrix)
+        local newLss, taus_, i, newLs, compfun, tau, sigma_, mewP, result, str;
+        # First we sort each individual block descendingly
+        newLss := [];
+        taus_ := [];
+        for i from 1 to P:-r do
+            newLs, tau := sort(P:-lss[i], `>`, 'output' = ['sorted', 'permutation']);
+            newLss := [op(newLss), newLs];
+            taus_ := [op(taus_), Perm(tau)^(-1)];
+        end do;
+        # This is the comparison function we will use to sort the blocks themselves.
+        # It returns true if the block `ls1` should occur before `ls2`
+        compfun := proc(ls1 :: list(integer), ls2 :: list(integer))
+            if nops(ls1) < nops(ls2) then return false;
+            elif nops(ls1) > nops(ls2) then return true;
+            else
+                for i from 1 to nops(ls1) do
+                    if ls1[i] < ls2[i] then return false;
+                    elif ls1[i] > ls2[i] then return true;
+                    end if;
+                end do;
+                return true;
+            end if;
+        end proc;
+        newLss, sigma_ := sort(P:-lss, compfun, 'output' = ['sorted', 'permutation']);
+        sigma_ := Perm(sigma_)^(-1);
+        # We need to reorder the taus, as we first applied the `taus` and the reorderd the blocks
+        # using `sigma`.
+        taus_ := applyPermToList(sigma_, taus_);
+        newP := applyAdmissibleColumnOperation(P, sigma_, taus_, Perm([]));
+        if _npassed = 1 then
+            return newP;
+        end if;
+        result := [];
+        for i from 2 to _npassed do
+            if type(_passed[i], `=`) then
+                if lhs(_passed[i]) = 'output' then
+                    for str in rhs(_passed[i]) do
+                        if str = 'normalized' then
+                            result := [op(result), newP];
+                        elif str = 'sigma' then
+                            result := [op(result), sigma_];
+                        elif str = 'taus' then
+                            result := [op(result), taus_];
+                        end if;
+                    end do;
+                else
+                    error "Unrecognized option: %1", lhs(_passed[i]);
+                end if;
+            end if;
+        end do;
+        return result;
     end proc;
 
     (* *******************
@@ -663,7 +770,7 @@ module PMatrix()
     end proc;
 
     export invariantPermutations := proc(ls :: list, compFun := `=`)
-        local indexGroups, a, b;
+        local indexGroups, a, b, permList;
         indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
         permList := map(permutationsOfIndexGroups, indexGroups(ls));
         return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permList));
