@@ -11,10 +11,33 @@ uses LinearAlgebra, MDSpackage, Database[SQLite];
 ** CONVENIENCE **
 ****************)
 
-local applyPermToList := proc(p :: Perm, ls :: list)
+export applyPermToList := proc(p :: Perm, ls :: list)
     local i;
     return [seq(ls[(p^(-1))[i]], i = 1 .. nops(ls))];
 end proc;
+
+(* Computes all permutations leaving a given list invariant. *)
+export invariantPermutations := proc(ls :: list, compFun := `=`)
+        local indexGroups, a, b, permList;
+        indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
+        permsList := [];
+        for grp in indexGroups do
+            perms := [];
+            for a in map(combinat[permute], nops(grp)) do
+                p := [seq(1 .. max(grp))];
+                for i from 1 to nops(grp) do
+                    p[grp[i]] := grp[a[i]];
+                end do;
+                perms := [op(perms), Perm(p)];
+            end do;
+            permsList := [op(permsList), perms];
+        end do; 
+        return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permsList));
+    end proc;
+
+(****************
+**** PFORMAT ****
+****************)
 
 module PFormat()
     option object;
@@ -195,7 +218,6 @@ module PFormat()
 
         return bigCones union maxLeafCones;
     end;
-
 
     export `=`::static := proc( l, r, $ )
         if (_npassed <> 2 or not l::PFormat or not r::PFormat) then
@@ -683,12 +705,54 @@ module PMatrix()
         applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ P:-r], rho);
     end proc;
 
+    (*
+    Creates a new P-Matrix by applying an admissible row operation. The row operation is specified by
+    an (s x (r-1))-Matrix `A` and an (s x s)-Matrix `B`. The row operation is applied by multiplying `P`
+    from the left with an elementary matrix as follows:
+
+    ( E 0 )  *  ( L 0 )  =  (    L      0  )
+    ( A B )     ( d d')     ( AL + Bd   Bd')
+
+    *)
+    export applyAdmissibleRowOperation := proc(P :: PMatrix, A :: Matrix, B :: Matrix)
+        local identityMatrix, zeroMatrix, newP;
+        if not type(A, 'Matrix'(P:-s, P:-r - 1, integer)) then
+            error "Expected second argument to be of type: Matrix(%1, %2, integer)", P:-s, P:-r - 1;
+        end if;
+        if not type(B, 'Matrix'(P:-s, P:-s, integer)) then
+            error "Expected third argument to be of type: Matrix(%1, %1, integer)", P:-s;
+        end if;
+        if not abs(Determinant(B)) = 1 then
+            error "Third argument must be a unimodular matrix, i.e. its determinant must be 1 or -1";
+        end if;
+        # An (r-1) x (r-1) identity matrix.
+        identityMatrix := Matrix(P:-r - 1, P:-r - 1, shape = diagonal, 1);
+        # An (r-1) x s zero matrix.
+        zeroMatrix := Matrix(P:-r - 1, P:-s, fill = 0);
+        # Multiply P from the left with
+        # ( E  0 )
+        # ( A  B )
+        newP := <<identityMatrix | zeroMatrix>, <A | B>> . P:-mat;
+        return PMatrix(P:-s, newP);
+    end proc;
+
     (******************
     ** NORMALIZATION **
     *******************)
 
     (*
-    Normalizes a P-Matrix by applying admissible column operations.
+    Removes all redundant blocks from a P-Matrix, i.e. all blocks with a single 1 inside the L-block.
+    *)
+    export removeRedundantColumns := proc(P :: PMatrix)
+        local newLss, redundantIndices, newD;
+        newLss := remove(ls -> ls = [1], P:-lss);
+        redundantIndices := map(i -> doubleToSingleIndex(P:-format, i, 1), select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]));
+        newD := DeleteColumn(P:-d, redundantIndices);
+        return PMatrix(newLss, newD);
+    end proc;
+
+    (*
+    Normalizes a P-Matrix by removing redundant columns and applying admissible column permutations.
     The columns of each block in the resulting P-Matrix are ordered descendingly by the ls,
     while the blocks themselves are ordered descendingly by size, and blocks of the same size
     are ordered lexicographically.
@@ -698,9 +762,11 @@ module PMatrix()
     names 'normalized', 'sigma' and 'taus'.
 
     *)
-    export normalizePMatrix := proc(P :: PMatrix)
-        local newLss, taus_, i, newLs, compfun, tau, sigma_, mewP, result, str;
-        # First we sort each individual block descendingly
+    export normalizePMatrix := proc(P0 :: PMatrix)
+        local P, newLss, taus_, newP, i, newLs, compfun, tau, sigma_, mewP, result, str;
+        # First, remove any redundant columns
+        P := removeRedundantColumns(P0);
+        # We sort each individual block descendingly
         newLss := [];
         taus_ := [];
         for i from 1 to P:-r do
@@ -724,7 +790,7 @@ module PMatrix()
         end proc;
         newLss, sigma_ := sort(P:-lss, compfun, 'output' = ['sorted', 'permutation']);
         sigma_ := Perm(sigma_)^(-1);
-        # We need to reorder the taus, as we first applied the `taus` and the reorderd the blocks
+        # We need to reorder the taus, as we first applied the `taus` and then reorderd the blocks
         # using `sigma`.
         taus_ := applyPermToList(sigma_, taus_);
         newP := applyAdmissibleColumnOperation(P, sigma_, taus_, Perm([]));
@@ -756,24 +822,100 @@ module PMatrix()
     ** EQUIVALENCE TEST **
     **********************)
 
-    local permutationsOfIndexGroups := proc(grp :: list(integer))
-        local perms, a, res, i;
-        perms := [];
-        for a in map(combinat[permute], nops(grp)) do
-            res := [seq(1 .. max(grp))];
-            for i from 1 to nops(grp) do
-                res[grp[i]] := grp[a[i]];
-            end do;
-            perms := [op(perms), Perm(res)];
+    (*
+    Checks whether two P-Matrices `P1` and `P2` are equivalent to each other by admissible row operations.
+    You can obtain the admissible row operation turning `P1` into `P2` by supplying the parameter `'output' = out`,
+    where `out` is a list of the names 'result', 'A', 'B' and 'S'.
+    *)
+    export areRowEquivalent := proc(P1 :: PMatrix, P2 :: PMatrix)
+        local resBool, resA, resB, resS, identityMatrix, zeroMatrix, A_, B_, S_, newP, sol, resultList, str, i, j;
+        resBool, resA, resB, resS := false, undefined, undefined, undefined;
+        # P-Matrices of different format are never row-equivalent.
+        if P1:-format = P2:-format then
+            identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
+            zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
+            A_ := Matrix(P1:-s, P1:-r - 1, symbol = 'a');
+            B_ := Matrix(P1:-s, P1:-s, symbol = 'b');
+            S_ := <<identityMatrix | zeroMatrix>, <A_ | B_>>;
+            newP := S_ . P1:-mat;
+            sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
+            if sol = NULL then
+                resBool, resA, resB, resS := false, undefined, undefined, undefined;
+            else
+                if abs(Determinant(subs(sol, B_))) = 1 then
+                    resBool := true;
+                    resA := subs(sol, A_);
+                    resB := subs(sol, B_);
+                    resS := subs(sol, S_);
+                end if;
+            end if;
+        end if;
+        # Output handling
+        if _npassed = 2 then
+            return resBool;
+        end if;
+        resultList := [];
+        for i from 2 to _npassed do
+            if type(_passed[i], `=`) then
+                if lhs(_passed[i]) = 'output' then
+                    for str in rhs(_passed[i]) do
+                        if str = 'result' then
+                            resultList := [op(resultList), resBool];
+                        elif str = 'A' then
+                            resultList := [op(resultList), resA];
+                        elif str = 'B' then
+                            resultList := [op(resultList), resB];
+                        elif str = 'S' then
+                            resultList := [op(resultList), resS];
+                        end if;
+                    end do;
+                else
+                    error "Unrecognized option: %1", lhs(_passed[i]);
+                end if;
+            end if;
         end do;
-        return perms;
+        return resultList;
     end proc;
 
-    export invariantPermutations := proc(ls :: list, compFun := `=`)
-        local indexGroups, a, b, permList;
-        indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
-        permList := map(permutationsOfIndexGroups, indexGroups(ls));
-        return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permList));
+    (*
+    Checks whether two P-Matrices `P1` and `P2` are eqiuvalent, i.e. can be transformed into each other
+    by a series of admissible operations.
+    TODO: Output the admissible operations turning `P1` into `P2`.
+    *)
+    export areEquivalent := proc(P1_ :: PMatrix, P2_ :: PMatrix)
+        local P1, P2, Ps, P, i;
+        if not evalb('skipNormalization' in [_passed]) then
+            # First, normalize P1 and P2
+            P1 := normalizePMatrix(P1_);
+            P2 := normalizePMatrix(P2_);
+        else 
+            P1 := P1_;
+            P2 := P2_;
+        end if;
+        # After normalization, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
+        # Note that normalization also removes redundant columns.
+        if P1:-lss <> P2:-lss then
+            return false;
+        end if;
+        # Starting from `P1`, we consider all P-Matrices that we can reach via admissible column operations
+        # leaving the L-block invariant. We do this in three steps corresponding to the three kinds of admissible column operations.
+        # First, we consider all column operations permuting two entire blocks.
+        Ps := map(sigma -> applyAdmissibleColumnOperation1(P1, sigma), invariantPermutations(P1:-lss));
+        # Second, we consider for each of those P-matrices all further P-matrices we can reach by admissible
+        # column permutations within a single block, such that the entire L-block is kept invariant.
+        for i from 1 to P1:-r do
+            Ps := ListTools[Flatten](map(P -> map(tau -> applyAdmissibleColumnOperation2(P, i, tau), invariantPermutations(P:-lss[i])), Ps));
+        end do;
+        # Thirdly, for each of those P-matrices, we consider all further P-matrices we reach by admissible
+        # column permutations within the last m columns.
+        Ps := ListTools[Flatten](map(P -> map(rho -> applyAdmissibleColumnOperation3(P, rho), map(Perm, combinat[permute](P:-m))), Ps));
+        # Now, for each of those P-matrices, we check if we can transform them into `P2` by admissible row operations.
+        for P in Ps do
+            if areRowEquivalent(P, P2) then
+                return true;
+            end if;
+        end do;
+        return false;
     end proc;
 
     export ModulePrint :: static := proc(self :: PMatrix)
