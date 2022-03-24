@@ -18,7 +18,7 @@ end proc;
 
 (* Computes all permutations leaving a given list invariant. *)
 export invariantPermutations := proc(ls :: list, compFun := `=`)
-        local indexGroups, a, b, permList;
+        local indexGroups, a, b, permsList, grp, perms, p, i;
         indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
         permsList := [];
         for grp in indexGroups do
@@ -540,11 +540,16 @@ module PMatrix()
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
 
+    (*
+    Gets the degree Matrix (Q) of a P-Matrix. If the degree Matrix has already been computed, it
+    is saved and will be used as a cache for any later call of `getQ`. By supplying the option 'forceCompute',
+    you can prevent using the cache and recompute the Q-matrix, even if it has already been computed in the past.
+    *)
     export getQ :: static := proc(self :: PMatrix)
         local A;
         # Currently, we rely on MDSpackage for these computations.
         # But they should be reimplemented here eventually.
-        if type(self:-Q, undefined) then
+        if type(self:-Q, undefined) or 'forceCompute' in [_passed] then
             A := AGHP2Q(convert(self, matrix));
             setClassGroup(self, AGHdata(A)[2]);
             setQ(self, Matrix(AGHdata(A)[3]));
@@ -555,15 +560,15 @@ module PMatrix()
     end;
 
     export getQ0 :: static := proc(self :: PMatrix)
-        if type(self:-Q0, undefined) then
-            getQ(self);
+        if type(self:-Q0, undefined) or 'forceCompute' in [_passed] then
+            getQ(self, 'forceCompute');
         end if;
         return self:-Q0;
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
-        if type(self:-classGroup, undefined) then
-            getQ(self);
+        if type(self:-classGroup, undefined) or 'forceCompute' in [_passed] then
+            getQ(self, 'forceCompute');
         end if;
         return self:-classGroup;
     end;
@@ -576,7 +581,7 @@ module PMatrix()
     end;
 
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
-        if type(self:-anitcanCoefficients, undefined) then
+        if type(self:-anitcanCoefficients, undefined) or 'forceCompute' in [_passed] then
             setAnticanCoefficients(self,
                 [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]);
         end if;
@@ -585,7 +590,7 @@ module PMatrix()
 
     export getAnticanClass :: static := proc(self :: PMatrix)
         local as, i, anticanVec, d;
-        if type(self:-anticanClass, undefined) then
+        if type(self:-anticanClass, undefined) or 'forceCompute' then
             as := getAnticanCoefficients(self);
             anticanVec := add(seq(as[i] * Column(getQ(self), i), i = 1 .. self:-n + self:-m));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
@@ -626,7 +631,7 @@ module PMatrix()
     *)
     export getMovingCone :: static := proc(self :: PMatrix)
         local Q0, cones, i, j;
-        if type(self:-movingCone, undefined) then
+        if type(self:-movingCone, undefined) or 'forceCompute' in [_passed] then
             Q0 := getQ0(self);
             cones := seq(poshull(seq(Column(Q0, i), i in {seq(1 .. ColumnDimension(Q0))} minus {j})), j = 1 .. ColumnDimension(Q0));
             self:-setMovingCone(self, intersection(cones));
@@ -1053,7 +1058,7 @@ module TVarOne()
     end;
 
     export getXCones :: static := proc(self :: TVarOne)
-        if type(self:-XCones, undefined) then
+        if type(self:-XCones, undefined) or 'forceCompute' in [_passed] then
             self:-XCones := select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
         end if;
         return self:-XCones;
@@ -1075,7 +1080,7 @@ module TVarOne()
     end;
 
     export getMaximalXCones :: static := proc(self :: TVarOne)
-        if type(self:-maximalXCones, undefined) then
+        if type(self:-maximalXCones, undefined) or 'forceCompute' in [_passed] then
             setMaximalXCones(self, getMaximalXConesFormat(self:-P:-format, self:-Sigma));
         end if;
         return self:-maximalXCones;
@@ -1092,7 +1097,7 @@ module TVarOne()
 
     export getGorensteinIndex :: static := proc(self :: TVarOne)
         local cone;
-        if type(self:-gorensteinIndex, undefined) then
+        if type(self:-gorensteinIndex, undefined) or 'forceCompute' in [_passed] then
             setGorensteinIndex(self, ilcm(seq(gorensteinIndexForXCone(self:-P, cone), cone in getMaximalXCones(self))));
         end if;
         return self:-gorensteinIndex;
@@ -1103,7 +1108,7 @@ module TVarOne()
     *)
     export isGorenstein :: static := proc(self :: TVarOne)
         local cone;
-        if type(self:-isGorensteinVal, undefined) then
+        if type(self:-isGorensteinVal, undefined) or 'forceCompute' in [_passed] then
             # This method could simply be implemented by computing the gorenstein index and
             # asking if it is equal to one. However, if we are not interested in the gorenstein index
             # and just want to know if it's gorenstein or not, we can just look at the individual
