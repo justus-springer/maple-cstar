@@ -561,13 +561,18 @@ module PMatrix()
 
     export getQ0 :: static := proc(self :: PMatrix)
         if type(self:-Q0, undefined) or 'forceCompute' in [_passed] then
-            getQ(self, 'forceCompute');
+            if not type(self:-Q, undefined) then
+                setQ0(self, DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q)));
+            else
+                getQ(self);
+            end if;
         end if;
         return self:-Q0;
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
         if type(self:-classGroup, undefined) or 'forceCompute' in [_passed] then
+            # Here we do a forceCompute to prevent a situation where Q is defined while classGroup is not.
             getQ(self, 'forceCompute');
         end if;
         return self:-classGroup;
@@ -590,7 +595,7 @@ module PMatrix()
 
     export getAnticanClass :: static := proc(self :: PMatrix)
         local as, i, anticanVec, d;
-        if type(self:-anticanClass, undefined) or 'forceCompute' then
+        if type(self:-anticanClass, undefined) or 'forceCompute' in [_passed] then
             as := getAnticanCoefficients(self);
             anticanVec := add(seq(as[i] * Column(getQ(self), i), i = 1 .. self:-n + self:-m));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
@@ -768,39 +773,45 @@ module PMatrix()
 
     *)
     export normalizePMatrix := proc(P0 :: PMatrix)
-        local P, newLss, taus_, newP, i, newLs, compfun, tau, sigma_, mewP, result, str;
+        local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
         # First, remove any redundant columns
-        P := removeRedundantColumns(P0);
+        P1 := removeRedundantColumns(P0);
+
+        sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
+            if P:-s = 1 then
+                Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
+            else
+                P:-lss[i][j];
+            end if;
+        end proc;
+
         # We sort each individual block descendingly
-        newLss := [];
         taus_ := [];
-        for i from 1 to P:-r do
-            newLs, tau := sort(P:-lss[i], `>`, 'output' = ['sorted', 'permutation']);
-            newLss := [op(newLss), newLs];
-            taus_ := [op(taus_), Perm(tau)^(-1)];
+        for i from 1 to P1:-r do
+            tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
+            taus_ := [op(taus_), tau];
         end do;
+        P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
+
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block `ls1` should occur before `ls2`
-        compfun := proc(ls1 :: list(integer), ls2 :: list(integer))
-            if nops(ls1) < nops(ls2) then return false;
-            elif nops(ls1) > nops(ls2) then return true;
+        compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+            if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
+            elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
             else
-                for i from 1 to nops(ls1) do
-                    if ls1[i] < ls2[i] then return false;
-                    elif ls1[i] > ls2[i] then return true;
+                for j from 1 to nops(P:-lss[i1]) do
+                    if sortKey(P, i1, j) < sortKey(P, i2, j) then return false;
+                    elif sortKey(P, i1, j) > sortKey(P, i2, j) then return true;
                     end if;
                 end do;
                 return true;
             end if;
         end proc;
-        newLss, sigma_ := sort(P:-lss, compfun, 'output' = ['sorted', 'permutation']);
-        sigma_ := Perm(sigma_)^(-1);
-        # We need to reorder the taus, as we first applied the `taus` and then reorderd the blocks
-        # using `sigma`.
-        taus_ := applyPermToList(sigma_, taus_);
-        newP := applyAdmissibleColumnOperation(P, sigma_, taus_, Perm([]));
+        sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
+        P3 := applyAdmissibleColumnOperation1(P2, sigma_);
+
         if _npassed = 1 then
-            return newP;
+            return P3;
         end if;
         result := [];
         for i from 2 to _npassed do
@@ -808,7 +819,7 @@ module PMatrix()
                 if lhs(_passed[i]) = 'output' then
                     for str in rhs(_passed[i]) do
                         if str = 'normalized' then
-                            result := [op(result), newP];
+                            result := [op(result), P3];
                         elif str = 'sigma' then
                             result := [op(result), sigma_];
                         elif str = 'taus' then
@@ -1146,6 +1157,20 @@ module TVarOne()
 
 end module:
 
+(* 
+Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a given SQLite connection `db`.
+If it finds the variety, the rowid of the database entry is returned. Otherwise, it returns -1.
+*)
+FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
+    P0 := X:-P;
+    # First, normalize the P-Matrix. In particular, this removes any redundant columns.
+    P1 := normalizePMatrix(P0);
+
+
+
+
+end proc;
+
 (*
 Inserts a list of Varieties of complexity One into a SQLite database, given by the `connection` parameter.
 The name of the table to insert the varieties into is given by `tableName`.
@@ -1225,8 +1250,32 @@ ImportTVarOneList := proc(stmt)
     result := [];
     while Step(stmt) = RESULT_ROW do
         P := PMatrix(Fetch(stmt, INDEX_S), Matrix(parse(Fetch(stmt, INDEX_P))));
+        # Read in any already avaliable metadata about P, if available
+        if type(INDEX_PICARDNUMBER, integer) then
+            setPicardNumber(P, Fetch(stmt, INDEX_PICARDNUMBER));
+            if type(INDEX_CLASSGROUPTORSION, integer) then
+                setClassGroup(P, createAG(getPicardNumber(P), parse(Fetch(stmt, INDEX_CLASSGROUPTORSION))));
+            end if;
+        end if;
+        if type(INDEX_ANTICANCLASS, integer) then
+            setAnticanClass(P, Vector(parse(Fetch(stmt, INDEX_ANTICANCLASS))));
+        end if;
+        if type(INDEX_DEGREEMATRIX, integer) then
+            setQ(P, Matrix(parse(Fetch(stmt, INDEX_DEGREEMATRIX))));
+        end if;
+
+        # If a fan is supplied, make a TVarOne.
         if type(INDEX_AMBIENTFAN, integer) then
             X := TVarOne(P, parse(Fetch(stmt, INDEX_AMBIENTFAN)));
+            if type(INDEX_MAXIMALXCONES, integer) then
+                setMaximalXCones(X, parse(Fetch(stmt, INDEX_MAXIMALXCONES)));
+            end if;
+            if type(INDEX_GORENSTEININDEX, integer) then
+                setGorensteinIndex(X, Fetch(stmt, INDEX_GORENSTEININDEX));
+            end if;
+            if type(INDEX_ISGORENSTEIN, integer) then
+                setIsGorensteinVal(X, evalb(Fetch(stmt, INDEX_ISGORENSTEIN) <> 0));
+            end if;
             result := [op(result), X];
         else
             result := [op(result), P];
