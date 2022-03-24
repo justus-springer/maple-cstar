@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, ImportTVarOneList, ExportTVarOneList;
+export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ExportTVarOneList;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage, Database[SQLite];
@@ -776,7 +776,8 @@ module PMatrix()
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
         # First, remove any redundant columns
         P1 := removeRedundantColumns(P0);
-
+        # The comparison function to sort the columns by.
+        # For surfaces, we sort by slope. In general, we sort by the entries of the lss directly.
         sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
             if P:-s = 1 then
                 Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
@@ -785,7 +786,7 @@ module PMatrix()
             end if;
         end proc;
 
-        # We sort each individual block descendingly
+        # First we sort each individual block.
         taus_ := [];
         for i from 1 to P1:-r do
             tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
@@ -794,7 +795,7 @@ module PMatrix()
         P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
 
         # This is the comparison function we will use to sort the blocks themselves.
-        # It returns true if the block `ls1` should occur before `ls2`
+        # It returns true if the block of index `i1` should occur before the block of index `i2`.
         compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
             if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
             elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
@@ -810,6 +811,7 @@ module PMatrix()
         sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
         P3 := applyAdmissibleColumnOperation1(P2, sigma_);
 
+        # Output handling
         if _npassed = 1 then
             return P3;
         end if;
@@ -1141,6 +1143,67 @@ module TVarOne()
         return self:-isGorensteinVal;
     end;
 
+    (****************************
+    *** ADMISSIBLE OPERATIONS ***
+    *****************************)
+
+    (*
+    Creates a new T-Variety of Complexity One by applying an admissible column operation. 
+    See also `PMatrix[applyAdmissibleColumnOperation]`.
+    *)
+    export applyAdmissibleColumnOperation := proc(X :: TVarOne, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+        local newP, bundledPerm, newSigma;
+        newP := PMatrix[applyAdmissibleColumnOperation](X:-P, sigma, taus, rho);
+        bundledPerm := bundleColumnPermutation(X:-P:-format, sigma, taus, rho);
+        newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
+        return TVarOne(newP, newSigma);
+    end proc;
+
+    (*
+    Creates a new T-Variety of Complexity One by applying an admissible column operation of type (1), i.e. 
+    permutation of blocks. See also `PMatrix[applyAdmissibleColumnOperation1]`.
+    *)
+    export applyAdmissibleColumnOperation1 := proc(X :: TVarOne, sigma :: Perm)
+        applyAdmissibleColumnOperation(X, sigma, [Perm([]) $ P:-r], Perm([]));
+    end proc;
+
+    (*
+    Creates a new T-Variety of Complexity One by applying an admissible column operation of type (2), i.e.
+    permutation of column within a given block `i`.See also `PMatrix[applyAdmissibleColumnOperation2]`.
+    *)
+    export applyAdmissibleColumnOperation2 := proc(X :: TVarOne, i :: integer, tau :: Perm)
+        applyAdmissibleColumnOperation(X, Perm([]), [Perm([]) $ (i-1), tau, Perm([]) $ P:-r - i], Perm([]));
+    end proc;
+
+    (*
+    Creates a new T-Variety of Complexity One by applying an admissible column operation of type (3), i.e.
+    permutation of the last m rows. See also `PMatrix[applyAdmissibleColumnOperation3]`.
+    *)
+    export applyAdmissibleColumnOperation3 := proc(X :: TVarOne, rho :: Perm)
+        applyAdmissibleColumnOperation(X, Perm([]), [Perm([]) $ P:-r], rho);
+    end proc;
+
+    (*
+    Creates a new T-Variety of Complexity One by applying an admissible row operation. 
+    See also `PMatrix[applyAdmissibleRowOperation]`.
+    *)
+    export applyAdmissibleRowOperation := proc(X :: TVarOne, A :: Matrix, B :: Matrix)
+        return TVarOne(PMatrix[applyAdmissibleRowOperation](X:-P, A, B), X:-Sigma);
+    end proc;
+
+    (*
+    Normalizes a T-Variety of Complexity One by removing redundant columns and applying 
+    admissible column permutations to the P-Matrix.
+    See also `normalizePMatrix`.
+    *)
+    export normalizeTVarOne := proc(X :: TVarOne)
+        local newP, sigma_, taus_, bundledPerm, newSigma;
+        newP, sigma_, taus_ := op(normalizePMatrix(X:-P, output = ['normalized', 'sigma', 'taus']));
+        bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
+        newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
+        return TVarOne(newP, newSigma);
+    end proc;
+
     export ModulePrint :: static := proc(self :: TVarOne)
         nprintf(cat("TVarOne(dim = ", self:-P:-s + 1,
           ", lss = ", self:-P:-lss,
@@ -1156,56 +1219,6 @@ module TVarOne()
     end;
 
 end module:
-
-(* 
-Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a given SQLite connection `db`.
-If it finds the variety, the rowid of the database entry is returned. Otherwise, it returns -1.
-*)
-FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
-    P0 := X:-P;
-    # First, normalize the P-Matrix. In particular, this removes any redundant columns.
-    P1 := normalizePMatrix(P0);
-
-
-
-
-end proc;
-
-(*
-Inserts a list of Varieties of complexity One into a SQLite database, given by the `connection` parameter.
-The name of the table to insert the varieties into is given by `tableName`.
-*)
-ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
-    local k, X, P, stmt, i;
-
-    for k from 1 to nops(Xs) do
-        X := Xs[k];
-        P := X:-P;
-        stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
-        Bind(stmt, 1, P:-r, valuetype = "integer");
-        Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
-        Bind(stmt, 3, P:-n, valuetype = "integer");
-        Bind(stmt, 4, P:-m, valuetype = "integer");
-        Bind(stmt, 5, P:-s, valuetype = "integer");
-        Bind(stmt, 6, convert(P:-lss, string), valuetype = "text");
-        Bind(stmt, 7, convert([seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))], string), valuetype = "text");
-        Bind(stmt, 8, P:-dim, valuetype = "integer");
-        Bind(stmt, 9, getPicardNumber(P), valuetype = "integer");
-        Bind(stmt, 10, convert(AGdata(getClassGroup(P))[4], string), valuetype = "text");
-        Bind(stmt, 11, convert([seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))], string), valuetype = "text");
-        Bind(stmt, 12, convert(convert(getAnticanClass(P), list), string), valuetype = "text");
-        Bind(stmt, 13, convert(X:-Sigma, string), valuetype = "text");
-        Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
-        Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
-        Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
-
-        Step(stmt);
-        Finalize(stmt);
-    end do;
-
-    print(cat("succesfully written ", nops(Xs), " varieties to the database"));
-
-end proc;
 
 ImportTVarOneList := proc(stmt)
     local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUPTORSION, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
@@ -1282,9 +1295,84 @@ ImportTVarOneList := proc(stmt)
         end if;
     end do;
 
-    Finalize(stmt);
-
     return result;
+
+end proc;
+
+(* 
+Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a given SQLite connection `db`.
+If it finds the variety, the rowid of the database entry is returned. Otherwise, it returns -1.
+*)
+FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
+    # First, normalize the P-Matrix.
+    X := normalizeTVarOne(X0);
+    P := X:-P;
+    stmt := Prepare(connection, cat("SELECT rowid,s,P FROM ", tableName, " WHERE ",
+        "lss = \"", P:-lss, "\" AND ",
+        "m = ", P:-m, " AND ",
+        "s = ", P:-s, " AND ",
+        "picardNumber = ", getPicardNumber(P), " AND ",
+        "classGroupTorsion = \"", AGdata(getClassGroup(P))[4], "\" AND ",
+        "anticanClass = \"", convert(getAnticanClass(P), list), "\" AND ",
+        "gorensteinIndex = ", getGorensteinIndex(X)));
+    Ps := ImportTVarOneList(stmt);
+    M := FetchAll(stmt):
+    rowids := [seq(M[i,1], i = 1 .. RowDimension(M))];
+    for i from 1 to nops(rowids) do
+        if areEquivalent(P, Ps[i]) then
+            return rowids[i];
+        end if;
+    end do;
+    return -1;
+
+end proc;
+
+(*
+Given a list of varieties of complexity one `Xs` and a SQLite database connection `db`, this function
+inserts those varieties from `Xs` into the database that are not already present.
+*)
+ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
+    local k, X, P, stmt, i;
+    knownCount := 0;
+
+    for k from 1 to nops(Xs) do
+        # Normalize the given T-Variety.
+        X := normalizeTVarOne(Xs[k]);
+        # Only insert `X` if it is not already present.
+        if FindInDatabase(connection, tableName, X) = -1 then
+            P := X:-P;
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            Bind(stmt, 1, P:-r, valuetype = "integer");
+            Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
+            Bind(stmt, 3, P:-n, valuetype = "integer");
+            Bind(stmt, 4, P:-m, valuetype = "integer");
+            Bind(stmt, 5, P:-s, valuetype = "integer");
+            Bind(stmt, 6, convert(P:-lss, string), valuetype = "text");
+            Bind(stmt, 7, convert([seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))], string), valuetype = "text");
+            Bind(stmt, 8, P:-dim, valuetype = "integer");
+            Bind(stmt, 9, getPicardNumber(P), valuetype = "integer");
+            Bind(stmt, 10, convert(AGdata(getClassGroup(P))[4], string), valuetype = "text");
+            Bind(stmt, 11, convert([seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))], string), valuetype = "text");
+            Bind(stmt, 12, convert(convert(getAnticanClass(P), list), string), valuetype = "text");
+            Bind(stmt, 13, convert(X:-Sigma, string), valuetype = "text");
+            Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
+            Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
+            Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
+
+            Step(stmt);
+            Finalize(stmt);
+            if 'logging' in [_passed] then
+                print(cat("Variety no. ", k, " inserted."));
+            end if;
+        else
+            knownCount := knownCount + 1;
+            if 'logging' in [_passed] then
+                print(cat("Variety no. ", k, " already known."));
+            end if;
+        end if;
+    end do;
+
+    print(cat("Supplied ", nops(Xs), " varieties. Already known: ", knownCount, ". Inserted ", nops(Xs) - knownCount, " new varieties into the database."));
 
 end proc;
 
