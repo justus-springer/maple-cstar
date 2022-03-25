@@ -35,9 +35,9 @@ export invariantPermutations := proc(ls :: list, compFun := `=`)
         return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permsList));
     end proc;
 
-(****************
-**** PFORMAT ****
-****************)
+(*****************************************************************************
+**********************             PFORMAT             ***********************
+******************************************************************************)
 
 module PFormat()
     option object;
@@ -232,6 +232,10 @@ module PFormat()
 
 end module:
 
+(*****************************************************************************
+**********************             PMATRIX             ***********************
+******************************************************************************)
+
 module PMatrix()
     option object;
 
@@ -247,6 +251,8 @@ module PMatrix()
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
     local movingCone := undefined;
+
+    local normalizedVal := false;
 
     export setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
@@ -540,6 +546,7 @@ module PMatrix()
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
 
+    export setIsNormalized :: static := proc(self :: PMatrix, normalizedVal :: boolean) self:-normalizedVal := normalizedVal; end proc;
     (*
     Gets the degree Matrix (Q) of a P-Matrix. If the degree Matrix has already been computed, it
     is saved and will be used as a cache for any later call of `getQ`. By supplying the option 'forceCompute',
@@ -652,6 +659,8 @@ module PMatrix()
     export admitsFanoVariety :: static := proc(self :: PMatrix)
         return containsrelint(getMovingCone(self), getAnticanClass(self));
     end;
+
+    export isNormalized :: static := proc(self :: PMatrix) self:-normalizedVal; end proc;
 
     (*
     Computes the slope of column in a P-matrix of a C*-surface.
@@ -774,42 +783,50 @@ module PMatrix()
     *)
     export normalizePMatrix := proc(P0 :: PMatrix)
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
-        # First, remove any redundant columns
-        P1 := removeRedundantColumns(P0);
-        # The comparison function to sort the columns by.
-        # For surfaces, we sort by slope. In general, we sort by the entries of the lss directly.
-        sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
-            if P:-s = 1 then
-                Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
-            else
-                P:-lss[i][j];
-            end if;
-        end proc;
+        # If `P` as already been normalized, no need to do it again
+        if not isNormalized(P0) then
+            # First, remove any redundant columns
+            P1 := removeRedundantColumns(P0);
+            # The comparison function to sort the columns by.
+            # For surfaces, we sort by slope. In general, we sort by the entries of the lss directly.
+            sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
+                if P:-s = 1 then
+                    Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
+                else
+                    P:-lss[i][j];
+                end if;
+            end proc;
 
-        # First we sort each individual block.
-        taus_ := [];
-        for i from 1 to P1:-r do
-            tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
-            taus_ := [op(taus_), tau];
-        end do;
-        P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
+            # First we sort each individual block.
+            taus_ := [];
+            for i from 1 to P1:-r do
+                tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
+                taus_ := [op(taus_), tau];
+            end do;
+            P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
 
-        # This is the comparison function we will use to sort the blocks themselves.
-        # It returns true if the block of index `i1` should occur before the block of index `i2`.
-        compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
-            if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
-            elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
-            else
-                for j from 1 to nops(P:-lss[i1]) do
-                    if sortKey(P, i1, j) < sortKey(P, i2, j) then return false;
-                    elif sortKey(P, i1, j) > sortKey(P, i2, j) then return true;
-                    end if;
-                end do;
-                return true;
-            end if;
-        end proc;
-        sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
-        P3 := applyAdmissibleColumnOperation1(P2, sigma_);
+            # This is the comparison function we will use to sort the blocks themselves.
+            # It returns true if the block of index `i1` should occur before the block of index `i2`.
+            compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+                if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
+                elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
+                else
+                    for j from 1 to nops(P:-lss[i1]) do
+                        if sortKey(P, i1, j) < sortKey(P, i2, j) then return false;
+                        elif sortKey(P, i1, j) > sortKey(P, i2, j) then return true;
+                        end if;
+                    end do;
+                    return true;
+                end if;
+            end proc;
+            sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
+            P3 := applyAdmissibleColumnOperation1(P2, sigma_);
+            setIsNormalized(P3, true);
+        else
+            P3 := P0;
+            sigma_ := Perm([]);
+            taus_ := [Perm([]) $ P0:-r];
+        end if;
 
         # Output handling
         if _npassed = 1 then
@@ -962,6 +979,11 @@ module PMatrix()
     end;
 
 end module:
+
+
+(*****************************************************************************
+**********************             TVARONE             ***********************
+******************************************************************************)
 
 module TVarOne()
     option object;
@@ -1116,6 +1138,10 @@ module TVarOne()
         return self:-gorensteinIndex;
     end;
 
+    export setIsNormalized :: static := proc(X :: TVarOne, normalizedVal :: boolean) PMatrix[setIsNormalized](X:-P, normalizedVal); end proc;
+
+    export isNormalized :: static := proc(X :: TVarOne) PMatrix[isNormalized](X:-P); end proc;
+
     (*
     Checks whether the variety is gorenstein.
     *)
@@ -1198,10 +1224,16 @@ module TVarOne()
     *)
     export normalizeTVarOne := proc(X :: TVarOne)
         local newP, sigma_, taus_, bundledPerm, newSigma;
+        # If X has already been normalized, no need to do it again.
+        if isNormalized(X) then
+            return X;
+        end if;
         newP, sigma_, taus_ := op(normalizePMatrix(X:-P, output = ['normalized', 'sigma', 'taus']));
         bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
         newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
-        return TVarOne(newP, newSigma);
+        newX := TVarOne(newP, newSigma);
+        setIsNormalized(newX, true);
+        return newX;
     end proc;
 
     export ModulePrint :: static := proc(self :: TVarOne)
