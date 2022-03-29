@@ -791,7 +791,10 @@ module PMatrix()
             # For surfaces, we sort by slope. In general, we sort by the entries of the lss directly.
             sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
                 if P:-s = 1 then
-                    Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
+                    # Slope ordering disabled for now.
+                    # It is not stable under row operations, which is what I need for this to work.
+                    #Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
+                    P:-lss[i][j];
                 else
                     P:-lss[i][j];
                 end if;
@@ -1340,12 +1343,11 @@ FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
     X := normalizeTVarOne(X0);
     P := X:-P;
     stmt := Prepare(connection, cat("SELECT rowid,s,P FROM ", tableName, " WHERE ",
-        "lss = \"", P:-lss, "\" AND ",
+        "orderedLss = \"", P:-lss, "\" AND ",
         "m = ", P:-m, " AND ",
         "s = ", P:-s, " AND ",
         "picardNumber = ", getPicardNumber(P), " AND ",
         "classGroupTorsion = \"", AGdata(getClassGroup(P))[4], "\" AND ",
-        "anticanClass = \"", convert(getAnticanClass(P), list), "\" AND ",
         "gorensteinIndex = ", getGorensteinIndex(X)));
     Ps := ImportTVarOneList(stmt);
     M := FetchAll(stmt):
@@ -1369,9 +1371,12 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
 
     for k from 1 to nops(Xs) do
         # Normalize the given T-Variety.
-        X := normalizeTVarOne(Xs[k]);
+        # DISABLED FOR NOW
+        # X := normalizeTVarOne(Xs[k]);
+        
         # Only insert `X` if it is not already present.
-        if FindInDatabase(connection, tableName, X) = -1 then
+        # Can be disabled by the 'noChecks' option
+        if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = -1 then
             P := X:-P;
             stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
@@ -1390,6 +1395,7 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
             Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
             Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
             Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
+            Bind(stmt, 17, normalizePMatrix(X:-P):-lss, valuetype = "test");
 
             Step(stmt);
             Finalize(stmt);
@@ -1404,8 +1410,14 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
         end if;
     end do;
 
-    print(cat("Supplied ", nops(Xs), " varieties. Already known: ", knownCount, ". Inserted ", nops(Xs) - knownCount, " new varieties into the database."));
-
+    if 'logging' in [_passed] then
+        if 'noChecks' in [_passed] then
+            print(cat("Written ", nops(Xs), "varieties to the database"));
+        else
+            print(cat("Supplied ", nops(Xs), " varieties. Already known: ", knownCount, ". Inserted ", nops(Xs) - knownCount, " new varieties into the database."));
+        end if;
+    end if;
+    
 end proc;
 
 end module:
