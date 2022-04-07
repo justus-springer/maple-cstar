@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ExportTVarOneList;
+export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ExportTVarOneList, performOnDatabase;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, MDSpackage, Database[SQLite];
@@ -1418,6 +1418,26 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
         end if;
     end if;
     
+end proc;
+
+(*
+Helper function to perform an operation on every variety in the database, without loading them into memory all at once
+(which can be unpractical, when the database is large).
+The parameter `f` is a function taking a `TVarOne` as first argument and an integer as second argument, which is the
+position the variety occurs in the database.
+*)
+performOnDatabase := proc(db, tableName :: string, f, step := 1000)
+    local numberOfEntries, numberOfSteps;
+    # First, count the number of database entries
+    numberOfEntries := FetchAll(Prepare(db, cat("SELECT COUNT(*) FROM ", tableName)))[1,1];
+    numberOfSteps := ceil(numberOfEntries / step);
+    for i from 1 to numberOfSteps do 
+        offset := (i - 1) * step;
+        Xs := ImportTVarOneList(Prepare(db, cat("SELECT * FROM ", tableName, " LIMIT ", step, " OFFSET ", offset)));
+        for j from 1 to nops(Xs) do
+            f(Xs[j], offset + j);
+        end do;
+    end do;
 end proc;
 
 end module:
