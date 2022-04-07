@@ -252,8 +252,6 @@ module PMatrix()
     local anitcanCoefficients := undefined;
     local movingCone := undefined;
 
-    local normalizedVal := false;
-
     export setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
         self:-r := f:-r;
@@ -546,7 +544,6 @@ module PMatrix()
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
 
-    export setIsNormalized :: static := proc(self :: PMatrix, normalizedVal :: boolean) self:-normalizedVal := normalizedVal; end proc;
     (*
     Gets the degree Matrix (Q) of a P-Matrix. If the degree Matrix has already been computed, it
     is saved and will be used as a cache for any later call of `getQ`. By supplying the option 'forceCompute',
@@ -660,8 +657,6 @@ module PMatrix()
         return containsrelint(getMovingCone(self), getAnticanClass(self));
     end;
 
-    export isNormalized :: static := proc(self :: PMatrix) self:-normalizedVal; end proc;
-
     (*
     Computes the slope of column in a P-matrix of a C*-surface.
     *)
@@ -771,65 +766,39 @@ module PMatrix()
     end proc;
 
     (*
-    Normalizes a P-Matrix by removing redundant columns and applying admissible column permutations.
-    The columns of each block in the resulting P-Matrix are ordered descendingly by the ls,
-    while the blocks themselves are ordered descendingly by size, and blocks of the same size
-    are ordered lexicographically.
-
-    You can obtain the permutation `sigma` of the blocks and the permutations `taus` of the
-    individual blocks by specifying the option `'output' = out`, where `out` is a list of the
-    names 'normalized', 'sigma' and 'taus'.
-
+    Applies admissible operations to sort the columns of a P-Matrix by the entries in the L-block.
+    The columns of block are sorted descendingly. The blocks themselves are sorted first descendingly
+    according to size, and within the same size lexicographically by the lss.
     *)
-    export normalizePMatrix := proc(P0 :: PMatrix)
+    export sortColumnsByLss := proc(P0 :: PMatrix)
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
-        # If `P` as already been normalized, no need to do it again
-        if not isNormalized(P0) then
-            # First, remove any redundant columns
-            P1 := removeRedundantColumns(P0);
-            # The comparison function to sort the columns by.
-            # For surfaces, we sort by slope. In general, we sort by the entries of the lss directly.
-            sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
-                if P:-s = 1 then
-                    # Slope ordering disabled for now.
-                    # It is not stable under row operations, which is what I need for this to work.
-                    #Column(P:-d, doubleToSingleIndex(P:-format, i, j))[1] / P:-lss[i][j];
-                    P:-lss[i][j];
-                else
-                    P:-lss[i][j];
-                end if;
-            end proc;
 
-            # First we sort each individual block.
-            taus_ := [];
-            for i from 1 to P1:-r do
-                tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
-                taus_ := [op(taus_), tau];
-            end do;
-            P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
+        # First, remove any redundant columns
+        P1 := removeRedundantColumns(P0);
+        # Sort each individual block
+        taus_ := [];
+        for i from 1 to P1:-r do
+            tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> P1:-lss[i][j1] > P1:-lss[i][j2], 'output' = 'permutation'))^(-1);
+            taus_ := [op(taus_), tau];
+        end do;
+        P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
 
-            # This is the comparison function we will use to sort the blocks themselves.
-            # It returns true if the block of index `i1` should occur before the block of index `i2`.
-            compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
-                if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
-                elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
-                else
-                    for j from 1 to nops(P:-lss[i1]) do
-                        if sortKey(P, i1, j) < sortKey(P, i2, j) then return false;
-                        elif sortKey(P, i1, j) > sortKey(P, i2, j) then return true;
-                        end if;
-                    end do;
-                    return true;
-                end if;
-            end proc;
-            sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
-            P3 := applyAdmissibleColumnOperation1(P2, sigma_);
-            setIsNormalized(P3, true);
-        else
-            P3 := P0;
-            sigma_ := Perm([]);
-            taus_ := [Perm([]) $ P0:-r];
-        end if;
+        # This is the comparison function we will use to sort the blocks themselves.
+        # It returns true if the block of index `i1` should occur before the block of index `i2`.
+        compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+            if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
+            elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
+            else
+                for j from 1 to nops(P:-lss[i1]) do
+                    if P:-lss[i1][j] < P:-lss[i2][j] then return false;
+                    elif P:-lss[i1][j] > P:-lss[i2][j] then return true;
+                    end if;
+                end do;
+                return true;
+            end if;
+        end proc;
+        sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
+        P3 := applyAdmissibleColumnOperation1(P2, sigma_);
 
         # Output handling
         if _npassed = 1 then
@@ -855,6 +824,73 @@ module PMatrix()
         end do;
         return result;
     end proc;
+
+    (*
+    Sort the columns of a P-Matrix of a K*-surface descendingly by the values of the alphas (adjusted slopes).
+    This is experimental and only works for surfaces at the moment.
+    *)
+    export sortColumnsByAdjustedSlopes := proc(P0 :: PMatrix)
+        local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
+
+        # First, remove any redundant columns
+        P1 := removeRedundantColumns(P0);
+
+        # The sortkey to sort the columns by
+        sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
+            P:-d[1,doubleToSingleIndex(P:-format, i, j)] / P:-lss[i][j]
+                + add([seq(floor(P:-d[1,doubleToSingleIndex(P:-format, i_, 1)] / P:-lss[i_][1]), i_ in ({seq(1..P:-r)} minus {i}))]);
+        end proc;
+
+        # Sort each individual block
+        taus_ := [];
+        for i from 1 to P1:-r do
+            tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
+            taus_ := [op(taus_), tau];
+        end do;
+        P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
+
+        # This is the comparison function we will use to sort the blocks themselves.
+        # It returns true if the block of index `i1` should occur before the block of index `i2`.
+        compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+            if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
+            elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
+            else
+                for j from 1 to nops(P:-lss[i1]) do
+                    if sortKey(P, i1, j) < sortKey(P, i2, j) then return false;
+                    elif sortKey(P, i1, j) > sortKey(P, i2, j) then return true;
+                    end if;
+                end do;
+                return true;
+            end if;
+        end proc;
+        sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
+        P3 := applyAdmissibleColumnOperation1(P2, sigma_);
+
+        # Output handling
+        if _npassed = 1 then
+            return P3;
+        end if;
+        result := [];
+        for i from 2 to _npassed do
+            if type(_passed[i], `=`) then
+                if lhs(_passed[i]) = 'output' then
+                    for str in rhs(_passed[i]) do
+                        if str = 'normalized' then
+                            result := [op(result), P3];
+                        elif str = 'sigma' then
+                            result := [op(result), sigma_];
+                        elif str = 'taus' then
+                            result := [op(result), taus_];
+                        end if;
+                    end do;
+                else
+                    error "Unrecognized option: %1", lhs(_passed[i]);
+                end if;
+            end if;
+        end do;
+        return result;
+    end proc;
+
 
     (* *******************
     ** EQUIVALENCE TEST **
@@ -919,41 +955,63 @@ module PMatrix()
     Checks whether two P-Matrices `P1` and `P2` are eqiuvalent, i.e. can be transformed into each other
     by a series of admissible operations.
     TODO: Output the admissible operations turning `P1` into `P2`.
+
+    Currently, we are working with two different algorithms for equivalence checking.
+    The first one only works for surfaces, but is a lot more efficient (sort the columns by the adjusted slopes)
+    The second one works in general, but has exponential running time in the number of blocks (roughly speaking).
+    Eventually, the first one should be generalized to get an efficient algorithm in general, but this will require some
+    theoretical work first.
+
     *)
     export areEquivalent := proc(P1_ :: PMatrix, P2_ :: PMatrix)
-        local P1, P2, Ps, P, i;
-        if not evalb('skipNormalization' in [_passed]) then
-            # First, normalize P1 and P2
-            P1 := normalizePMatrix(P1_);
-            P2 := normalizePMatrix(P2_);
-        else 
-            P1 := P1_;
-            P2 := P2_;
-        end if;
-        # After normalization, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
-        # Note that normalization also removes redundant columns.
-        if P1:-lss <> P2:-lss then
+        local Ps, P, i;
+
+        # Varieties of different dimension can't be isomorphic.
+        if P1_:-s <> P2_:-s then
             return false;
         end if;
-        # Starting from `P1`, we consider all P-Matrices that we can reach via admissible column operations
-        # leaving the L-block invariant. We do this in three steps corresponding to the three kinds of admissible column operations.
-        # First, we consider all column operations permuting two entire blocks.
-        Ps := map(sigma -> applyAdmissibleColumnOperation1(P1, sigma), invariantPermutations(P1:-lss));
-        # Second, we consider for each of those P-matrices all further P-matrices we can reach by admissible
-        # column permutations within a single block, such that the entire L-block is kept invariant.
-        for i from 1 to P1:-r do
-            Ps := ListTools[Flatten](map(P -> map(tau -> applyAdmissibleColumnOperation2(P, i, tau), invariantPermutations(P:-lss[i])), Ps));
-        end do;
-        # Thirdly, for each of those P-matrices, we consider all further P-matrices we reach by admissible
-        # column permutations within the last m columns.
-        Ps := ListTools[Flatten](map(P -> map(rho -> applyAdmissibleColumnOperation3(P, rho), map(Perm, combinat[permute](P:-m))), Ps));
-        # Now, for each of those P-matrices, we check if we can transform them into `P2` by admissible row operations.
-        for P in Ps do
-            if areRowEquivalent(P, P2) then
-                return true;
+
+        if P1_:-s = 1 then
+            # SURFACE CASE
+            # We sort the columns by adjusted slopes, once for P1 and once for its negative.
+            P11 := sortColumnsByAdjustedSlopes(P1_);
+            P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1_, Matrix([[0 $ P1_:-r - 1]]), Matrix([[-1]])));
+            # Also sort the columns of P2
+            P2 := sortColumnsByAdjustedSlopes(P2_);
+            # After sorting by the alphas, P1 and P2 are equivalent if and only if they are row-equivalent
+            # i.e. no need to worry about column permutations any more.
+            # (With the caveat that we don't fix the direction of the P-Matrix, which is why we work both with P1 and its negative at the same time)
+            return areRowEquivalent(P11, P2) or areRowEquivalent(P12, P2);
+        else
+            # GENERAL CASE
+            # First, sort the columns by the lss.
+            P1 := sortColumnsByLss(P1_);
+            P2 := sortColumnsByLss(P2_);
+            # After sorting, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
+            # Note that normalization also removes redundant columns.
+            if P1:-lss <> P2:-lss then
+                return false;
             end if;
-        end do;
-        return false;
+            # Starting from `P1`, we consider all P-Matrices that we can reach via admissible column operations
+            # leaving the L-block invariant. We do this in three steps corresponding to the three kinds of admissible column operations.
+            # First, we consider all column operations permuting two entire blocks.
+            Ps := map(sigma -> applyAdmissibleColumnOperation1(P1, sigma), invariantPermutations(P1:-lss));
+            # Second, we consider for each of those P-matrices all further P-matrices we can reach by admissible
+            # column permutations within a single block, such that the entire L-block is kept invariant.
+            for i from 1 to P1:-r do
+                Ps := ListTools[Flatten](map(P -> map(tau -> applyAdmissibleColumnOperation2(P, i, tau), invariantPermutations(P:-lss[i])), Ps));
+            end do;
+            # Thirdly, for each of those P-matrices, we consider all further P-matrices we reach by admissible
+            # column permutations within the last m columns.
+            Ps := ListTools[Flatten](map(P -> map(rho -> applyAdmissibleColumnOperation3(P, rho), map(Perm, combinat[permute](P:-m))), Ps));
+            # Now, for each of those P-matrices, we check if we can transform them into `P2` by admissible row operations.
+            for P in Ps do
+                if areRowEquivalent(P, P2) then
+                    return true;
+                end if;
+            end do;
+            return false;
+        end if;
     end proc;
 
     export ModulePrint :: static := proc(self :: PMatrix)
