@@ -904,8 +904,9 @@ module PMatrix()
     export areRowEquivalent := proc(P1 :: PMatrix, P2 :: PMatrix)
         local resBool, resA, resB, resS, identityMatrix, zeroMatrix, A_, B_, S_, newP, sol, resultList, str, i, j;
         resBool, resA, resB, resS := false, undefined, undefined, undefined;
-        # P-Matrices of different format are never row-equivalent.
-        if P1:-format = P2:-format then
+        
+        # P-Matrices of different tower structure (lss) are never row-equivalent.
+        if P1:-lss = P2:-lss then
             identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
             zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
             A_ := Matrix(P1:-s, P1:-r - 1, symbol = 'a');
@@ -988,7 +989,7 @@ module PMatrix()
             P1 := sortColumnsByLss(P1_);
             P2 := sortColumnsByLss(P2_);
             # After sorting, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
-            # Note that normalization also removes redundant columns.
+            # Note that `sortColumnsByLss` also removes redundant columns.
             if P1:-lss <> P2:-lss then
                 return false;
             end if;
@@ -1199,10 +1200,6 @@ module TVarOne()
         return self:-gorensteinIndex;
     end;
 
-    export setIsNormalized :: static := proc(X :: TVarOne, normalizedVal :: boolean) PMatrix[setIsNormalized](X:-P, normalizedVal); end proc;
-
-    export isNormalized :: static := proc(X :: TVarOne) PMatrix[isNormalized](X:-P); end proc;
-
     (*
     Checks whether the variety is gorenstein.
     *)
@@ -1279,21 +1276,14 @@ module TVarOne()
     end proc;
 
     (*
-    Normalizes a T-Variety of Complexity One by removing redundant columns and applying 
-    admissible column permutations to the P-Matrix.
-    See also `normalizePMatrix`.
+    See also `sortColumnsByLss` for PMatrix.
     *)
-    export normalizeTVarOne := proc(X :: TVarOne)
+    export sortColumnsByLss := proc(X :: TVarOne)
         local newP, sigma_, taus_, bundledPerm, newSigma;
-        # If X has already been normalized, no need to do it again.
-        if isNormalized(X) then
-            return X;
-        end if;
-        newP, sigma_, taus_ := op(normalizePMatrix(X:-P, output = ['normalized', 'sigma', 'taus']));
+        newP, sigma_, taus_ := op(PMatrix[sortColumnsByLss](X:-P, output = ['normalized', 'sigma', 'taus']));
         bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
         newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
         newX := TVarOne(newP, newSigma);
-        setIsNormalized(newX, true);
         return newX;
     end proc;
 
@@ -1398,7 +1388,7 @@ If it finds the variety, the rowid of the database entry is returned. Otherwise,
 *)
 FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
     # First, normalize the P-Matrix.
-    X := normalizeTVarOne(X0);
+    X := sortColumnsByLss(X0);
     P := X:-P;
     stmt := Prepare(connection, cat("SELECT rowid,s,P FROM ", tableName, " WHERE ",
         "orderedLss = \"", P:-lss, "\" AND ",
@@ -1428,6 +1418,7 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
     knownCount := 0;
 
     for k from 1 to nops(Xs) do
+        X := Xs[k];
         # Normalize the given T-Variety.
         # DISABLED FOR NOW
         # X := normalizeTVarOne(Xs[k]);
@@ -1436,7 +1427,7 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
         # Can be disabled by the 'noChecks' option
         if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = -1 then
             P := X:-P;
-            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
             Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
             Bind(stmt, 3, P:-n, valuetype = "integer");
@@ -1453,7 +1444,7 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
             Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
             Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
             Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
-            Bind(stmt, 17, normalizePMatrix(X:-P):-lss, valuetype = "test");
+            Bind(stmt, 17, convert(sortColumnsByLss(X:-P):-lss, string), valuetype = "text");
 
             Step(stmt);
             Finalize(stmt);
