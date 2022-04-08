@@ -786,6 +786,7 @@ module PMatrix()
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block of index `i1` should occur before the block of index `i2`.
         compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+            local j;
             if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
             elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
             else
@@ -837,6 +838,7 @@ module PMatrix()
 
         # The sortkey to sort the columns by
         sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
+            local i_;
             P:-d[1,doubleToSingleIndex(P:-format, i, j)] / P:-lss[i][j]
                 + add([seq(floor(P:-d[1,doubleToSingleIndex(P:-format, i_, 1)] / P:-lss[i_][1]), i_ in ({seq(1..P:-r)} minus {i}))]);
         end proc;
@@ -852,6 +854,7 @@ module PMatrix()
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block of index `i1` should occur before the block of index `i2`.
         compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+            local j;
             if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
             elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
             else
@@ -965,7 +968,7 @@ module PMatrix()
 
     *)
     export areEquivalent := proc(P1_ :: PMatrix, P2_ :: PMatrix)
-        local Ps, P, i;
+        local Ps, P, i, P1, P2, P11, P12;
 
         # Varieties of different dimension can't be isomorphic.
         if P1_:-s <> P2_:-s then
@@ -1279,7 +1282,7 @@ module TVarOne()
     See also `sortColumnsByLss` for PMatrix.
     *)
     export sortColumnsByLss := proc(X :: TVarOne)
-        local newP, sigma_, taus_, bundledPerm, newSigma;
+        local newP, sigma_, taus_, bundledPerm, newSigma, newX;
         newP, sigma_, taus_ := op(PMatrix[sortColumnsByLss](X:-P, output = ['normalized', 'sigma', 'taus']));
         bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
         newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
@@ -1387,6 +1390,7 @@ Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a 
 If it finds the variety, the rowid of the database entry is returned. Otherwise, it returns -1.
 *)
 FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
+    local X, P, stmt, Ps, M, rowids, i;
     # First, normalize the P-Matrix.
     X := sortColumnsByLss(X0);
     P := X:-P;
@@ -1414,7 +1418,7 @@ Given a list of varieties of complexity one `Xs` and a SQLite database connectio
 inserts those varieties from `Xs` into the database that are not already present.
 *)
 ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
-    local k, X, P, stmt, i;
+    local k, X, P, stmt, i, knownCount;
     knownCount := 0;
 
     for k from 1 to nops(Xs) do
@@ -1476,7 +1480,7 @@ The parameter `f` is a function taking a `TVarOne` as first argument and an inte
 position the variety occurs in the database.
 *)
 performOnDatabase := proc(db, tableName :: string, f, step := 1000)
-    local numberOfEntries, numberOfSteps;
+    local numberOfEntries, numberOfSteps, i, offset, Xs, j;
     # First, count the number of database entries
     numberOfEntries := FetchAll(Prepare(db, cat("SELECT COUNT(*) FROM ", tableName)))[1,1];
     numberOfSteps := ceil(numberOfEntries / step);
