@@ -554,7 +554,7 @@ module PMatrix()
         # Currently, we rely on MDSpackage for these computations.
         # But they should be reimplemented here eventually.
         if type(self:-Q, undefined) or 'forceCompute' in [_passed] then
-            A := AGHP2Q(convert(self, matrix));
+            A := AGHP2Q(convert(self, linalg:-matrix));
             setClassGroup(self, AGHdata(A)[2]);
             setQ(self, Matrix(AGHdata(A)[3]));
             setPicardNumber(self, AGdata(self:-classGroup)[3]);
@@ -977,11 +977,16 @@ module PMatrix()
 
         if P1_:-s = 1 then
             # SURFACE CASE
-            # We sort the columns by adjusted slopes, once for P1 and once for its negative.
-            P11 := sortColumnsByAdjustedSlopes(P1_);
-            P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1_, Matrix([[0 $ P1_:-r - 1]]), Matrix([[-1]])));
-            # Also sort the columns of P2
-            P2 := sortColumnsByAdjustedSlopes(P2_);
+            # We sort the columns by adjusted slopes
+            if 'skipSorting' in [_passed] then
+                P1 := P1_;
+                P2 := P2_;
+            else
+                P1 := sortColumnsByAdjustedSlopes(P1_);
+                P2 := sortColumnsByAdjustedSlopes(P2_);
+            end if;
+            P11 := P1;
+            P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1, Matrix([[0 $ P1_:-r - 1]]), Matrix([[-1]])));
             # After sorting by the alphas, P1 and P2 are equivalent if and only if they are row-equivalent
             # i.e. no need to worry about column permutations any more.
             # (With the caveat that we don't fix the direction of the P-Matrix, which is why we work both with P1 and its negative at the same time)
@@ -989,8 +994,13 @@ module PMatrix()
         else
             # GENERAL CASE
             # First, sort the columns by the lss.
-            P1 := sortColumnsByLss(P1_);
-            P2 := sortColumnsByLss(P2_);
+            if 'skipSorting' in [_passed] then
+                P1 := P1_;
+                P2 := P2_;
+            else 
+                P1 := sortColumnsByLss(P1_);
+                P2 := sortColumnsByLss(P2_);
+            end if;
             # After sorting, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
             # Note that `sortColumnsByLss` also removes redundant columns.
             if P1:-lss <> P2:-lss then
@@ -1023,9 +1033,9 @@ module PMatrix()
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
-        local P, Q, picardNumber, classGroup, anticanClass, admitsFano;
+        local P, Q, n, m, picardNumber, classGroup, anticanClass, admitsFano, i;
         print(P = self:-mat);
-        nprintf(cat("Format: ", self:-ns, ", m = ", self:-m, ", s = ", self:-s)); #"
+        print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
         print(Q = getQ(self));
         print(classGroup = getClassGroup(self));
         print(picardNumber = getPicardNumber(self));
@@ -1036,7 +1046,7 @@ module PMatrix()
     export convert :: static := proc(self :: PMatrix, toType, $)
         if toType = ':-Matrix' then
             self:-mat;
-        elif toType = ':-matrix' then
+        elif toType = 'linalg:-matrix' or toType = 'matrix' then
             :-convert(self:-mat, matrix);
         else
             error "cannot convert from PMatrix to %1", toType;
@@ -1387,10 +1397,11 @@ end proc;
 
 (* 
 Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a given SQLite connection `db`.
-If it finds the variety, the rowid of the database entry is returned. Otherwise, it returns -1.
+It returns the list of rowids in the database where the P-Matrix is equivalent to the given one. 
+If the P-Matrix does not occur, it returns the empty list.
 *)
 FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
-    local X, P, stmt, Ps, M, rowids, i;
+    local X, P, stmt, Ps, M, rowids, i, resids;
     # First, normalize the P-Matrix.
     X := sortColumnsByLss(X0);
     P := X:-P;
@@ -1404,13 +1415,13 @@ FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
     Ps := ImportTVarOneList(stmt);
     M := FetchAll(stmt):
     rowids := [seq(M[i,1], i = 1 .. RowDimension(M))];
+    resids := [];
     for i from 1 to nops(rowids) do
         if areEquivalent(P, Ps[i]) then
-            return rowids[i];
+            resids := [op(resids), rowids[i]];
         end if;
     end do;
-    return -1;
-
+    return resids;
 end proc;
 
 (*
@@ -1429,7 +1440,7 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
         
         # Only insert `X` if it is not already present.
         # Can be disabled by the 'noChecks' option
-        if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = -1 then
+        if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = [] then
             P := X:-P;
             stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
