@@ -542,6 +542,10 @@ module PMatrix()
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
     
+    (*
+    Compute the smith normal form of the transpose of the matrix.
+    From this we can read off the degree matrix.
+    *)
     local computeSmithForm :: static := proc(self :: PMatrix)
         local S_, U_, classGroup, i, degreeMatrixTorsion;
         # Compute the Smith normal form.
@@ -556,10 +560,9 @@ module PMatrix()
             end if;
         end do;
         setClassGroup(self, classGroup);
-        # Now compute the degree matrix from `U`.
-        setQ0(self, Matrix(self:-picardNumber, self:-n + self:-m, [Row(U_, [seq(ColumnDimension(S_) + 1 .. RowDimension(S_))])]));
-        degreeMatrixTorsion := Matrix(nops(self:-classGroup) - 1, self:-n + self:-m, 
-            [seq(map(x -> x mod S_[i,i], Row(U_, i)), i = ColumnDimension(S_) - (nops(self:-classGroup) - 1) + 1 .. ColumnDimension(S_))]);
+        # Now read off the degree matrix from `U`.
+        setQ0(self, DeleteRow(U_, [seq(1 .. ColumnDimension(S_))]));
+        degreeMatrixTorsion := Matrix([seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + 1), list)), i = 1 .. nops(classGroup) - 1)]);
         setQ(self, Matrix(self:-picardNumber + nops(self:-classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
     end;
 
@@ -641,6 +644,32 @@ module PMatrix()
         end if;
         return self:-movingCone;
     end;
+
+    (*
+    Computes the local class group of the variety associated to a P-Matrix.
+    The first argument is the P-Matrix. The second argument is a cone corresponding
+    to a toric orbit, encoded as a list of integers.
+    The output is encoded as a list of integers, where the first entry is the rank of
+    the free part and all remaining entries are the elementary divisors of the torsion part.
+    *)
+    export getLocalClassGroup := proc(self :: PMatrix, cone :: set(integer))
+        local Psub, S_, U_, localRank, localClassGroup, i;
+        # We need to compute a smith form of a submatrix of the P-Matrix, where
+        # we removed all columns that do not occur on `cone`.
+        Psub := DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)]);
+        S_, U_ := SmithForm(Transpose(Psub), output = ['S', 'U']);
+        # The rank of the local class group
+        localRank := max(0, RowDimension(S_) - ColumnDimension(S_));
+        localClassGroup := [localRank];
+        # For the torsion part, we traverse the diagonal of `S` and add all entries that are not equal to one
+        # Note that they are already given in ascending order by `SmithForm`
+        for i from 1 to min(ColumnDimension(S_), RowDimension(S_)) do
+            if S_[i,i] <> 1 then
+                localClassGroup := [op(localClassGroup), S_[i,i]];
+            end if;
+        end do;
+        return localClassGroup;
+    end proc;
 
     (*
     Checks whether there exists a Fano variety coming from this P-Matrix.
@@ -963,6 +992,10 @@ module PMatrix()
     *)
     export areEquivalent := proc(P1_ :: PMatrix, P2_ :: PMatrix)
         local Ps, P, i, P1, P2, P11, P12;
+
+        if P1_:-r = 2 or P2_:-r = 2 then
+            error "The equivalence check is only defined for non-toric varieties, i.e. r must be at least 3.";
+        end if;
 
         # Varieties of different dimension can't be isomorphic.
         if P1_:-s <> P2_:-s then
