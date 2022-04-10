@@ -5,7 +5,7 @@ option package;
 export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ExportTVarOneList, performOnDatabase;
 
 ## TODO: Remove dependency on MDSpackage.
-uses LinearAlgebra, MDSpackage, Database[SQLite];
+uses LinearAlgebra, Database[SQLite];
 
 (****************
 ** CONVENIENCE **
@@ -42,7 +42,7 @@ export invariantPermutations := proc(ls :: list, compFun := `=`)
 module PFormat()
     option object;
 
-    export r, ns, n, m, s;
+    export r, ns, n, m, s, dim, picardNumber;
 
     export ModuleApply :: static := proc()
         Object(PFormat, _passed);
@@ -64,6 +64,8 @@ module PFormat()
         self:-n := add(ns);
         self:-m := m;
         self:-s := s;
+        self:-dim := s + 1;
+        self:-picardNumber := self:-n + self:-m - (self:-r - 1 + self:-s);
     end;
 
     (*
@@ -241,13 +243,12 @@ module PMatrix()
 
     # These fields are guaranteed to be filled when a PMatrix is created.
     export format, lss, d, mat, P0;
-    export r, ns, n, m, s, dim;
+    export r, ns, n, m, s, dim, picardNumber;
 
     # These fields are only computed when needed. Use these getters below for these.
-    local picardNumber := undefined;
+    export classGroup := undefined;
     local Q := undefined;
     local Q0 := undefined;
-    local classGroup := undefined;
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
     local movingCone := undefined;
@@ -259,7 +260,7 @@ module PMatrix()
         self:-n := f:-n;
         self:-m := f:-m;
         self:-s := f:-s;
-        self:-dim := f:-s + 1;
+        self:-picardNumber := f:-picardNumber;
     end proc;
 
     # Check if all columns of P are primitive
@@ -337,7 +338,6 @@ module PMatrix()
                 self:-mat := P:-mat;
                 self:-P0 := P:-P0;
                 self:-d := P:-d;
-
             else
                 # Input method (1)
                 # PFormat, list(list(integer)), Matrix.
@@ -530,63 +530,58 @@ module PMatrix()
 
     end;
 
+    export setClassGroup :: static := proc(self :: PMatrix, classGroup :: list(integer)) self:-classGroup := classGroup; end proc;
+
     export setQ :: static := proc(self :: PMatrix, Q :: Matrix) self:-Q := Q; end proc;
 
     export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc;
-
-    export setClassGroup :: static := proc(self :: PMatrix, classGroup :: AG) self:-classGroup := classGroup; end proc;
-
-    export setPicardNumber :: static := proc(self :: PMatrix, picardNumber :: integer) self:-picardNumber := picardNumber; end proc;
 
     export setAnticanCoefficients :: static := proc(self :: PMatrix, anitcanCoefficients) self:-anitcanCoefficients := anitcanCoefficients; end proc;
 
     export setAnticanClass :: static := proc(self :: PMatrix, anticanClass) self:-anticanClass := anticanClass; end proc;
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
+    
+    local computeSmithForm :: static := proc(self :: PMatrix)
+        local S_, U_, classGroup, i, degreeMatrixTorsion;
+        # Compute the Smith normal form.
+        S_, U_ := SmithForm(Transpose(self:-mat), output = ['S','U']);
+        # The first entry of `classGroup` is the picard number, i.e. the rank of the free part
+        classGroup := [self:-picardNumber];
+        # For the torsion part, we traverse the diagonal of `S` and add all entries that are not equal to one
+        # Note that they are already given in ascending order by `SmithForm`
+        for i from 1 to ColumnDimension(S_) do
+            if S_[i,i] <> 1 then
+                classGroup := [op(classGroup), S_[i,i]];
+            end if;
+        end do;
+        setClassGroup(self, classGroup);
+        # Now compute the degree matrix from `U`.
+        setQ0(self, Matrix(self:-picardNumber, self:-n + self:-m, [Row(U_, [seq(ColumnDimension(S_) + 1 .. RowDimension(S_))])]));
+        degreeMatrixTorsion := Matrix(nops(self:-classGroup) - 1, self:-n + self:-m, 
+            [seq(map(x -> x mod S_[i,i], Row(U_, i)), i = ColumnDimension(S_) - (nops(self:-classGroup) - 1) + 1 .. ColumnDimension(S_))]);
+        setQ(self, Matrix(self:-picardNumber + nops(self:-classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
+    end;
 
-    (*
-    Gets the degree Matrix (Q) of a P-Matrix. If the degree Matrix has already been computed, it
-    is saved and will be used as a cache for any later call of `getQ`. By supplying the option 'forceCompute',
-    you can prevent using the cache and recompute the Q-matrix, even if it has already been computed in the past.
-    *)
+    export getClassGroup :: static := proc(self :: PMatrix)
+        if type(self:-classGroup, undefined) or 'forceCompute' in [_passed] then
+            computeSmithForm(self);
+        end if;
+        return self:-classGroup;
+    end;
+
     export getQ :: static := proc(self :: PMatrix)
-        local A;
-        # Currently, we rely on MDSpackage for these computations.
-        # But they should be reimplemented here eventually.
         if type(self:-Q, undefined) or 'forceCompute' in [_passed] then
-            A := AGHP2Q(convert(self, linalg:-matrix));
-            setClassGroup(self, AGHdata(A)[2]);
-            setQ(self, Matrix(AGHdata(A)[3]));
-            setPicardNumber(self, AGdata(self:-classGroup)[3]);
-            setQ0(self, DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q)));
+            computeSmithForm(self);
         end if;
         return self:-Q;
     end;
 
     export getQ0 :: static := proc(self :: PMatrix)
         if type(self:-Q0, undefined) or 'forceCompute' in [_passed] then
-            if not type(self:-Q, undefined) then
-                setQ0(self, DeleteRow(self:-Q, self:-picardNumber + 1 .. RowDimension(self:-Q)));
-            else
-                getQ(self);
-            end if;
+            computeSmithForm(self);
         end if;
         return self:-Q0;
-    end;
-
-    export getClassGroup :: static := proc(self :: PMatrix)
-        if type(self:-classGroup, undefined) or 'forceCompute' in [_passed] then
-            # Here we do a forceCompute to prevent a situation where Q is defined while classGroup is not.
-            getQ(self, 'forceCompute');
-        end if;
-        return self:-classGroup;
-    end;
-
-    export getPicardNumber :: static := proc(self :: PMatrix)
-        if type(self:-picardNumber, undefined) then
-            setPicardNumber(self, ColumnDimension(self:-mat) - RowDimension(self:-mat));
-        end if;
-        return self:-picardNumber;
     end;
 
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
@@ -604,9 +599,8 @@ module PMatrix()
             anticanVec := add(seq(as[i] * Column(getQ(self), i), i = 1 .. self:-n + self:-m));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
             # We normalize these entries, so that each of them is less than `d`.
-            for i from getPicardNumber(self) + 1 to RowDimension(getQ(self)) do
-                d := AGdata(getClassGroup(self))[4][i - getPicardNumber(self)];
-                anticanVec[i] := anticanVec[i] mod d;
+            for i from 1 to nops(getClassGroup(self)) - 1 do
+                anticanVec[self:-picardNumber + i] := anticanVec[self:-picardNumber + i] mod getClassGroup(self)[i+1];
             end do;
             setAnticanClass(self, anticanVec);
         end if;
@@ -1038,7 +1032,7 @@ module PMatrix()
         print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
         print(Q = getQ(self));
         print(classGroup = getClassGroup(self));
-        print(picardNumber = getPicardNumber(self));
+        print(picardNumber = self:-picardNumber);
         print(anticanClass = getAnticanClass(self));
         print(admitsFano = admitsFanoVariety(self));
     end;
@@ -1093,7 +1087,7 @@ module TVarOne()
             end if;
             self:-Sigma := _passed[4];
         else
-            if getPicardNumber(P) = 1 then
+            if P:-picardNumber = 1 then
                 # Input method (2)
                 # This means, the picard number of X is one.
                 numColumns := ColumnDimension(P:-mat);
@@ -1317,7 +1311,7 @@ module TVarOne()
 end module:
 
 ImportTVarOneList := proc(stmt)
-    local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUPTORSION, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
+    local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUP, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
     local i, clm, result, P, X;
 
     columns := ColumnNames(stmt);
@@ -1331,8 +1325,8 @@ ImportTVarOneList := proc(stmt)
             INDEX_DIMENSION := i;
         elif clm = "picardNumber" then
             INDEX_PICARDNUMBER := i;
-        elif clm = "classGroupTorsion" then
-            INDEX_CLASSGROUPTORSION := i;
+        elif clm = "classGroup" then
+            INDEX_CLASSGROUP := i;
         elif clm = "degreeMatrix" then
             INDEX_DEGREEMATRIX := i;
         elif clm = "anticanClass" then
@@ -1362,8 +1356,8 @@ ImportTVarOneList := proc(stmt)
         # Read in any already avaliable metadata about P, if available
         if type(INDEX_PICARDNUMBER, integer) then
             setPicardNumber(P, Fetch(stmt, INDEX_PICARDNUMBER));
-            if type(INDEX_CLASSGROUPTORSION, integer) then
-                setClassGroup(P, createAG(getPicardNumber(P), parse(Fetch(stmt, INDEX_CLASSGROUPTORSION))));
+            if type(INDEX_CLASSGROUP, integer) then
+                setClassGroup(P, parse(Fetch(stmt, INDEX_CLASSGROUP)));
             end if;
         end if;
         if type(INDEX_ANTICANCLASS, integer) then
@@ -1409,8 +1403,7 @@ FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
         "orderedLss = \"", P:-lss, "\" AND ",
         "m = ", P:-m, " AND ",
         "s = ", P:-s, " AND ",
-        "picardNumber = ", getPicardNumber(P), " AND ",
-        "classGroupTorsion = \"", AGdata(getClassGroup(P))[4], "\" AND ",
+        "classGroup = \"", getClassGroup(X:-P), "\" AND ",
         "gorensteinIndex = ", getGorensteinIndex(X)));
     Ps := ImportTVarOneList(stmt);
     M := FetchAll(stmt):
@@ -1451,8 +1444,8 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
             Bind(stmt, 6, convert(P:-lss, string), valuetype = "text");
             Bind(stmt, 7, convert([seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))], string), valuetype = "text");
             Bind(stmt, 8, P:-dim, valuetype = "integer");
-            Bind(stmt, 9, getPicardNumber(P), valuetype = "integer");
-            Bind(stmt, 10, convert(AGdata(getClassGroup(P))[4], string), valuetype = "text");
+            Bind(stmt, 9, P:-picardNumber, valuetype = "integer");
+            Bind(stmt, 10, convert(getClassGroup(P), string), valuetype = "text");
             Bind(stmt, 11, convert([seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))], string), valuetype = "text");
             Bind(stmt, 12, convert(convert(getAnticanClass(P), list), string), valuetype = "text");
             Bind(stmt, 13, convert(X:-Sigma, string), valuetype = "text");
