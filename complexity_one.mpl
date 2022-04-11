@@ -1018,7 +1018,7 @@ module PMatrix()
                 P2 := sortColumnsByAdjustedSlopes(P2_);
             end if;
             P11 := P1;
-            P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1, Matrix([[0 $ P1_:-r - 1]]), Matrix([[-1]])));
+            P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1, Matrix([[0 $ P1:-r - 1]]), Matrix([[-1]])));
             # After sorting by the alphas, P1 and P2 are equivalent if and only if they are row-equivalent
             # i.e. no need to worry about column permutations any more.
             # (With the caveat that we don't fix the direction of the P-Matrix, which is why we work both with P1 and its negative at the same time)
