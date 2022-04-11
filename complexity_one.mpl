@@ -260,6 +260,7 @@ module PMatrix()
         self:-n := f:-n;
         self:-m := f:-m;
         self:-s := f:-s;
+        self:-dim := f:-dim;
         self:-picardNumber := f:-picardNumber;
     end proc;
 
