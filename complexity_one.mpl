@@ -246,7 +246,7 @@ module PMatrix()
     export r, ns, n, m, s, dim, picardNumber;
 
     # These fields are only computed when needed. Use these getters below for these.
-    export classGroup := undefined;
+    local classGroup := undefined;
     local Q := undefined;
     local Q0 := undefined;
     local anticanClass := undefined;
@@ -532,7 +532,10 @@ module PMatrix()
 
     export setClassGroup :: static := proc(self :: PMatrix, classGroup :: list(integer)) self:-classGroup := classGroup; end proc;
 
-    export setQ :: static := proc(self :: PMatrix, Q :: Matrix) self:-Q := Q; end proc;
+    export setQ :: static := proc(self :: PMatrix, Q :: Matrix) 
+        self:-Q := Q; 
+        self:-Q0 := DeleteRow(Q, [seq(self:-picardNumber + 1 .. RowDimension(Q))]);
+    end proc;
 
     export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc;
 
@@ -562,8 +565,9 @@ module PMatrix()
         setClassGroup(self, classGroup);
         # Now read off the degree matrix from `U`.
         setQ0(self, DeleteRow(U_, [seq(1 .. ColumnDimension(S_))]));
-        degreeMatrixTorsion := Matrix([seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + 1), list)), i = 1 .. nops(classGroup) - 1)]);
-        setQ(self, Matrix(self:-picardNumber + nops(self:-classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
+        degreeMatrixTorsion := Matrix(nops(classGroup) - 1, self:-n + self:-m,
+            [seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + 1), list)), i = 1 .. nops(classGroup) - 1)]);
+        setQ(self, Matrix(self:-picardNumber + nops(classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
