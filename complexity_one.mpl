@@ -1340,7 +1340,7 @@ module TVarOne()
     See also `sortColumnsByLss` for PMatrix.
     *)
     export sortColumnsByLss := proc(X0 :: TVarOne)
-        local newP, sigma_, taus_, bundledPerm, newSigma, newX;
+        local X, newP, sigma_, taus_, bundledPerm, newSigma, newX;
         # First remove redundant columns. Note that this also changes the fan.
         X := removeRedundantColumns(X0);
         # Now, sort the columns using the method from `PMatrix`.
