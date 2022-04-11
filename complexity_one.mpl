@@ -1125,12 +1125,7 @@ module TVarOne()
             end if;
             self:-Sigma := _passed[4];
         else
-            if P:-picardNumber = 1 then
-                # Input method (2)
-                # This means, the picard number of X is one.
-                numColumns := ColumnDimension(P:-mat);
-                self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
-            elif P:-s = 1 then
+            if P:-s = 1 then
                 # Input method (3)
                 # This means, X is a C* surface.
                 # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
@@ -1192,6 +1187,11 @@ module TVarOne()
                 else
                     error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
                 end if;
+            elif P:-picardNumber = 1 then
+                # Input method (2)
+                # This means, the picard number of X is one.
+                numColumns := ColumnDimension(P:-mat);
+                self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             else
                 error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface."
                       "Therefore, you must provide the fan Sigma as input.";
@@ -1243,7 +1243,7 @@ module TVarOne()
             setGorensteinIndex(self, ilcm(seq(gorensteinIndexForXCone(self:-P, cone), cone in getMaximalXCones(self))));
         end if;
         return self:-gorensteinIndex;
-    end;
+    end proc;
 
     (*
     Checks whether the variety is gorenstein.
@@ -1270,11 +1270,27 @@ module TVarOne()
             end if;
         end if;
         return self:-isGorensteinVal;
-    end;
+    end proc;
 
     (****************************
     *** ADMISSIBLE OPERATIONS ***
     *****************************)
+
+    export removeRedundantColumns :: static := proc(X :: TVarOne)
+        local P, newP, removedColumnIndices, oldToNewIndex, newSigma;
+        P := X:-P;
+        newP := PMatrix[removeRedundantColumns](P);
+        removedColumnIndices := select(k -> P:-lss[(singleToDoubleIndex(P:-format, k))[1]] = [1], [seq(1 .. P:-n + P:-m)]);
+        oldToNewIndex := proc(k :: integer)
+            if k in removedColumnIndices then 
+                return NULL;
+            else 
+                return k - nops(select(k1 -> k1 < k, removedColumnIndices));
+            end if;
+        end proc;
+        newSigma := map(cones -> map(oldToNewIndex, cones), X:-Sigma);
+        return TVarOne(newP, newSigma);
+    end proc;
 
     (*
     Creates a new T-Variety of Complexity One by applying an admissible column operation. 
@@ -1323,10 +1339,14 @@ module TVarOne()
     (*
     See also `sortColumnsByLss` for PMatrix.
     *)
-    export sortColumnsByLss := proc(X :: TVarOne)
+    export sortColumnsByLss := proc(X0 :: TVarOne)
         local newP, sigma_, taus_, bundledPerm, newSigma, newX;
+        # First remove redundant columns. Note that this also changes the fan.
+        X := removeRedundantColumns(X0);
+        # Now, sort the columns using the method from `PMatrix`.
         newP, sigma_, taus_ := op(PMatrix[sortColumnsByLss](X:-P, output = ['normalized', 'sigma', 'taus']));
-        bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
+        # Adjust the fan accordingly, by applying the permutation given from the sorting.
+        bundledPerm := bundleColumnPermutation(newP:-format, sigma_, taus_, Perm([]));
         newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
         newX := TVarOne(newP, newSigma);
         return newX;
