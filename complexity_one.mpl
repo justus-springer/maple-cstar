@@ -265,11 +265,12 @@ module PMatrix()
         self:-picardNumber := f:-picardNumber;
     end proc;
     
-    export setRelations :: static := proc(self :: PMatrix, ns :: list(integer), lss :: list(list(integer)))
-        self:-variables := [seq(seq(T[i,j], j = 1 .. ns[i]), i = 1 .. nops(ns))];
-        self:-monoimals := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. ns[i])]), i = 1 .. nops(ns))];
+    export setRelations :: static := proc(self :: PMatrix, f :: PFormat, lss :: list(list(integer)))
+        local i, j;
+        self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
+        self:-monoimals := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
         # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
-        self:-relations := [seq(self:-monoimals[i] + self:-monoimals[i+1] + self:-monoimals[i+2], i = 1 .. nops(ns) - 2)];
+        self:-relations := [seq(self:-monoimals[i] + self:-monoimals[i+1] + self:-monoimals[i+2], i = 1 .. f:-r - 2)];
     end proc;
 
     # Check if all columns of P are primitive
@@ -382,7 +383,7 @@ module PMatrix()
                 end do:
 
                 # Construct the relations in the Cox Ring.
-                setRelations(self, self:-ns, _passed[4]);
+                setRelations(self, self:-format, _passed[4]);
 
                 # Construct the P-matrix from the given data
                 rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
@@ -523,8 +524,8 @@ module PMatrix()
             end do;
 
             self:-lss := lss;
-            setRelations(self, ns, lss);
             setFormat(self, PFormat(ns, ColumnDimension(P) - add(ns), RowDimension(P) - r + 1));
+            setRelations(self, self:-format, lss);
 
             # Check if we really have all-zeros in the upper right block
             for i from 1 to r-1 do
