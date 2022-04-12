@@ -244,6 +244,7 @@ module PMatrix()
     # These fields are guaranteed to be filled when a PMatrix is created.
     export format, lss, d, mat, P0;
     export r, ns, n, m, s, dim, picardNumber;
+    export variables, monoimals, relations;
 
     # These fields are only computed when needed. Use these getters below for these.
     local classGroup := undefined;
@@ -262,6 +263,13 @@ module PMatrix()
         self:-s := f:-s;
         self:-dim := f:-dim;
         self:-picardNumber := f:-picardNumber;
+    end proc;
+    
+    export setRelations :: static := proc(self :: PMatrix, ns :: list(integer), lss :: list(list(integer)))
+        self:-variables := [seq(seq(T[i,j], j = 1 .. ns[i]), i = 1 .. nops(ns))];
+        self:-monoimals := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. ns[i])]), i = 1 .. nops(ns))];
+        # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
+        self:-relations := [seq(self:-monoimals[i] + self:-monoimals[i+1] + self:-monoimals[i+2], i = 1 .. nops(ns) - 2)];
     end proc;
 
     # Check if all columns of P are primitive
@@ -339,6 +347,9 @@ module PMatrix()
                 self:-mat := P:-mat;
                 self:-P0 := P:-P0;
                 self:-d := P:-d;
+                self:-variables := P:-variables;
+                self:-monoimals := P:-monoimals;
+                self:-relations := P:-relations;
             else
                 # Input method (1)
                 # PFormat, list(list(integer)), Matrix.
@@ -369,6 +380,9 @@ module PMatrix()
                         error "length of %-1 vector in lss does not match given P-format. Expected length: %2. Given length: %3.", i, self:-ns[i], nops(self:-lss[i]);
                     end if;
                 end do:
+
+                # Construct the relations in the Cox Ring.
+                setRelations(self, self:-ns, _passed[4]);
 
                 # Construct the P-matrix from the given data
                 rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
@@ -509,7 +523,7 @@ module PMatrix()
             end do;
 
             self:-lss := lss;
-
+            setRelations(self, ns, lss);
             setFormat(self, PFormat(ns, ColumnDimension(P) - add(ns), RowDimension(P) - r + 1));
 
             # Check if we really have all-zeros in the upper right block
@@ -1097,7 +1111,6 @@ module TVarOne()
 
     export P, Sigma;
 
-    local XCones := undefined;
     local maximalXCones := undefined;
     local gorensteinIndex := undefined;
     local isGorensteinVal := undefined;
@@ -1197,24 +1210,6 @@ module TVarOne()
                       "Therefore, you must provide the fan Sigma as input.";
             end if;
         end if;
-    end;
-
-    export getXCones :: static := proc(self :: TVarOne)
-        if type(self:-XCones, undefined) or 'forceCompute' in [_passed] then
-            self:-XCones := select(cone -> isXCone(self:-P:-format, cone), self:-Sigma);
-        end if;
-        return self:-XCones;
-    end;
-
-    export isMaximalXCone :: static := proc(self :: TVarOne, cone :: set(integer))
-        local XCones, cone_;
-        XCones := getXCones(self);
-        for cone_ in XCones do
-            if cone subset cone_ and cone <> cone_ then
-                return false;
-            end if;
-        end do;
-        return true;
     end;
 
     export setMaximalXCones :: static := proc(self :: TVarOne, maximalXCones :: set(set(integer))) 
