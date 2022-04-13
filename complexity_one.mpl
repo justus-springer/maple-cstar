@@ -253,6 +253,7 @@ module PMatrix()
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
     local movingCone := undefined;
+    local admitsFanoVal := undefined;
 
     export setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
@@ -561,6 +562,8 @@ module PMatrix()
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
     
+    export setAdmitsFanoVal :: static := proc(self :: PMatrix, admitsFanoVal :: boolean) self:-admitsFanoVal := admitsFanoVal; end proc;
+
     (*
     Compute the smith normal form of the transpose of the matrix.
     From this we can read off the degree matrix.
@@ -666,6 +669,18 @@ module PMatrix()
     end;
 
     (*
+    Checks whether there exists a Fano variety coming from this P-Matrix.
+    This is equivalent to checking whether the anticanonical class lies in the
+    relative interior of the moving cone.
+    *)
+    export admitsFano :: static := proc(self :: PMatrix)
+        if type(self:-admitsFanoVal, undefined) or 'forceCompute' in [_passed] then
+            setAdmitsFanoVal(self, containsrelint(getMovingCone(self), getAnticanClass(self)));
+        end if;
+        return self:-admitsFanoVal;
+    end;
+
+    (*
     Computes the local class group of the variety associated to a P-Matrix.
     The first argument is the P-Matrix. The second argument is a cone corresponding
     to a toric orbit, encoded as a list of integers.
@@ -690,15 +705,6 @@ module PMatrix()
         end do;
         return localClassGroup;
     end proc;
-
-    (*
-    Checks whether there exists a Fano variety coming from this P-Matrix.
-    This is equivalent to checking whether the anticanonical class lies in the
-    relative interior of the moving cone.
-    *)
-    export admitsFanoVariety :: static := proc(self :: PMatrix)
-        return containsrelint(getMovingCone(self), getAnticanClass(self));
-    end;
 
     (*
     Computes the slope of column in a P-matrix of a C*-surface.
@@ -1087,7 +1093,7 @@ module PMatrix()
         print(classGroup = getClassGroup(self));
         print(picardNumber = self:-picardNumber);
         print(anticanClass = getAnticanClass(self));
-        print(admitsFano = admitsFanoVariety(self));
+        print(admitsFano = PMatrix[admitsFano](self));
     end;
 
     export convert :: static := proc(self :: PMatrix, toType, $)
@@ -1123,9 +1129,12 @@ module TVarOne()
     (*
     This method creates a T-Variety of complexity one from various kinds of data. It supports three
     different input methods:
-    (1) P :: PMatrix, Sigma :: set(set(integer)).
-    (2) P :: PMatrix, where the picard number of P is one.
-    (3) P :: PMatrix, where P is a P-Matrix of a C* surface.
+    (1) P :: PMatrix, where P is a P-Matrix of a C* surface, i.e. P:-s = 1.
+    (2) P :: PMatrix, where P:-picardNumber = 1.
+    (3) P :: PMatrix, where admitsFano(P) = true.
+    (4) P :: PMatrix, w :: {Vector, list}, where w is contained in the relative interior of the moving cone of P.
+    (5) P :: PMatrix, Sigma :: set(set(integer)).
+
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
         local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
@@ -1133,18 +1142,41 @@ module TVarOne()
         self:-P := P;
 
         if _npassed = 4 then
-            # Input method (1)
-            if not type(_passed[4], set(set(integer))) then
-                error "Expected second argument to be of type: set(set(integer)).";
+            if type(_passed[4], Vector) or type(_passed[4], list(integer)) then
+                # Input method (4).
+                w := _passed[4];
+
+                if not containsrelint(getMovingCone(P), w) then
+                    error "The given weight w = % does not lie in the moving cone of P.", convert(w, list);
+                end if;
+
+                # In this case, we compute the bunch of cones associated to w.
+                # TODO: Make this computation more efficient by incrementally searching only the minimal cones containing w.
+                candidates := [op(combinat[powerset]({seq(1 .. P:-n + P:-m)}) minus {{}})];
+                minimalBunchCones := {};
+                for i from 1 to nops(candidates) do
+                    cone := candidates[i];
+                    # If we already have a cone that's contained in this one, skip it.
+                    if select(c -> c subset cone, minimalBunchCones) = {} then
+                        if containsrelint(poshull(Column(getQ0(P), [op(cone)])), w) then
+                            minimalBunchCones := {op(minimalBunchCones), cone};
+                        end if;
+                    end if;
+                end do;
+                # We dualize to get the maximal cones of the associated fan.
+                self:-Sigma := map(c -> {seq(1 .. P:-n + P:-m)} minus c, minimalBunchCones);
+            elif type(_passed[4], set(set(integer))) then
+                # Input method (5).
+                self:-Sigma := _passed[4];
+            else
+                error "Expected second argument to be either of type `Vector`, `list` or `set(set(integer))`.";
             end if;
-            self:-Sigma := _passed[4];
         else
             if P:-s = 1 then
-                # Input method (3)
-                # This means, X is a C* surface.
-                # This implementation is based on Construction 5.4.1.6 of "Cox Rings".
-                # It is generalized slightly to support P-Matrices whose columns are
-                # not necessarily slope-ordered.
+                # Input method (1): X is a C* surface.
+                # In this case, the moving cone equals the semiample cone, hence there is only one
+                # possible fan for the P-Matrix. We can write it down explicitly, following Construction 5.4.1.6 of "Cox Rings".
+                # Note that we do not require the P-Matrix to be slope-ordered.
                 
                 ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
                     (j1, j2) -> getSlope(P, i, j1) > getSlope(P, i, j2)), 
@@ -1203,9 +1235,14 @@ module TVarOne()
                 end if;
             elif P:-picardNumber = 1 then
                 # Input method (2)
-                # This means, the picard number of X is one.
+                # In this case, the picard number is one, hence there is only one complete fan in the lattice 
+                # containing the columns of the P-Matrix as rays.
                 numColumns := ColumnDimension(P:-mat);
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
+            elif admitsFano(P) then
+                # Input method (3).
+                # In this case, we call the procedure again with the anticanonical class as the weight.
+                return TVarOne[ModuleCopy](self, proto, P, getAnticanClass(P));
             else
                 error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface."
                       "Therefore, you must provide the fan Sigma as input.";
