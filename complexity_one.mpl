@@ -252,6 +252,7 @@ module PMatrix()
     local Q0 := undefined;
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
+    local effectiveCone := undefined;
     local movingCone := undefined;
     local admitsFanoVal := undefined;
 
@@ -562,6 +563,8 @@ module PMatrix()
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
     
+    export setEffectiveCone :: static := proc(self :: PMatrix, effectiveCone :: CONE) self:-effectiveCone := effectiveCone end proc;
+
     export setAdmitsFanoVal :: static := proc(self :: PMatrix, admitsFanoVal :: boolean) self:-admitsFanoVal := admitsFanoVal; end proc;
 
     (*
@@ -653,6 +656,13 @@ module PMatrix()
         local e;
         return ilcm(seq(denom(rhs(e)), e in getLinearFormForXCone(self, cone)));
     end;
+
+    export getEffectiveCone :: static := proc(self :: PMatrix)
+        if type(self:-effectiveCone, undefined) or 'forceCompute' in [_passed] then
+            setEffectiveCone(self, poshull(Column(getQ0(self), [seq(1 .. self:-n + self:-m)])));
+        end if;
+        return self:-effectiveCone;
+    end proc;
 
     (*
     Computes the moving cone associated to a P-Matrix.
@@ -1121,6 +1131,8 @@ module TVarOne()
     local maximalXCones := undefined;
     local gorensteinIndex := undefined;
     local isGorensteinVal := undefined;
+    local ampleCone := undefined;
+    local isFanoVal := undefined;
 
     export ModuleApply :: static := proc()
         Object(TVarOne, _passed);
@@ -1137,7 +1149,7 @@ module TVarOne()
 
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
-        local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus;
+        local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone;
 
         self:-P := P;
 
@@ -1303,6 +1315,24 @@ module TVarOne()
             end if;
         end if;
         return self:-isGorensteinVal;
+    end proc;
+
+    export setAmpleCone :: static := proc(self :: TVarOne, ampleCone :: CONE) self:-ampleCone := ampleCone; end proc;
+
+    export getAmpleCone :: static := proc(self :: TVarOne)
+        if type(self:-ampleCone, undefined) or 'forceCompute' in [_passed] then
+            setAmpleCone(self, intersection(seq(poshull(Column(getQ0(self:-P), [op({seq(1 .. ColumnDimension(getQ0(self:-P)))} minus cone)])), cone in getMaximalXCones(self))));
+        end if;
+        return self:-ampleCone;
+    end proc;
+
+    export setIsFanoVal :: static := proc(self :: TVarOne, isFanoVal :: boolean) self:-isFanoVal := isFanoVal; end proc;
+
+    export isFano :: static := proc(self :: TVarOne)
+        if type(self:-isFanoVal, undefined) or 'forceCompute' in [_passed] then
+            setIsFanoVal(self, containsrelint(getAmpleCone(self), getAnticanClass(self:-P)));
+        end if;
+        return self:-isFanoVal
     end proc;
 
     (****************************
