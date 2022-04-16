@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ExportTVarOneList, performOnDatabase;
+export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ImportTVarOne, ExportTVarOneList, performOnDatabase;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, Database[SQLite];
@@ -1320,6 +1320,7 @@ module TVarOne()
     export setAmpleCone :: static := proc(self :: TVarOne, ampleCone :: CONE) self:-ampleCone := ampleCone; end proc;
 
     export getAmpleCone :: static := proc(self :: TVarOne)
+        local cone;
         if type(self:-ampleCone, undefined) or 'forceCompute' in [_passed] then
             setAmpleCone(self, intersection(seq(poshull(Column(getQ0(self:-P), [op({seq(1 .. ColumnDimension(getQ0(self:-P)))} minus cone)])), cone in getMaximalXCones(self))));
         end if;
@@ -1536,6 +1537,14 @@ FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
         end if;
     end do;
     return resids;
+end proc;
+
+(*
+Imports a single TVarOne from a database with a given rowid.
+To import multiple varieties using an arbitrary SQLite query, use `ImportTVarOneList`
+*)
+ImportTVarOne := proc(db, tableName :: string, rowid :: integer)
+    ImportTVarOneList(Prepare(db, cat("SELECT * FROM ", tableName, " WHERE rowid = ", rowid)))[1];
 end proc;
 
 (*
