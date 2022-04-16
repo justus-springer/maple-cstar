@@ -256,7 +256,13 @@ module PMatrix()
     local movingCone := undefined;
     local admitsFanoVal := undefined;
 
-    export setFormat :: static := proc(self :: PMatrix, f :: PFormat)
+    # These fields are only defined for P-Matrices of surfaces, i.e. s = 1.
+    export case := undefined;
+    export slopes := undefined;
+    export mplus := undefined;
+    export mminus := undefined;
+
+    local setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
         self:-r := f:-r;
         self:-ns := f:-ns;
@@ -267,12 +273,29 @@ module PMatrix()
         self:-picardNumber := f:-picardNumber;
     end proc;
     
-    export setRelations :: static := proc(self :: PMatrix, f :: PFormat, lss :: list(list(integer)))
+    local setRelations :: static := proc(self :: PMatrix, f :: PFormat, lss :: list(list(integer)))
         local i, j;
         self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
         self:-monoimals := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
         # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
         self:-relations := [seq(self:-monoimals[i] + self:-monoimals[i+1] + self:-monoimals[i+2], i = 1 .. f:-r - 2)];
+    end proc;
+
+    local setSlopes :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
+        self:-slopes := [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-mplus := add([seq(max(self:-slopes[i]), i = 1 .. self:-r)]);
+        self:-mminus := add([seq(min(self:-slopes[i]), i = 1 .. self:-r)]);
+        if self:-m = 0 then
+            self:-case := 'EE';
+        elif self:-m = 1 then
+            if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
+                self:-case := 'PE';
+            elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
+                self:-case := 'EP';
+            end if;
+        elif self:-m = 2 then
+            self:-case := 'PP';
+        end if;
     end proc;
 
     # Check if all columns of P are primitive
@@ -386,6 +409,11 @@ module PMatrix()
 
                 # Construct the relations in the Cox Ring.
                 setRelations(self, self:-format, _passed[4]);
+
+                # If this is a P-Matrix of a surface, set the slopes
+                if self:-s = 1 then 
+                    setSlopes(self, self:-d, self:-lss);
+                end if;
 
                 # Construct the P-matrix from the given data
                 rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
@@ -527,7 +555,7 @@ module PMatrix()
 
             self:-lss := lss;
             setFormat(self, PFormat(ns, ColumnDimension(P) - add(ns), RowDimension(P) - r + 1));
-            setRelations(self, self:-format, lss);
+            
 
             # Check if we really have all-zeros in the upper right block
             for i from 1 to r-1 do
@@ -541,9 +569,13 @@ module PMatrix()
             assertColumnsPrimitive(self);
             assertColumnsGenerateFullCone(self);
 
-            # Finally, we get the d-block
             self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
-
+            setRelations(self, self:-format, lss);
+            
+            # If this a P-Matrix of a surface, compute the slopes
+            if self:-s = 1 then
+                setSlopes(self, self:-d, self:-lss);
+            end if;
         end if;
 
     end;
@@ -714,16 +746,6 @@ module PMatrix()
             end if;
         end do;
         return localClassGroup;
-    end proc;
-
-    (*
-    Computes the slope of column in a P-matrix of a C*-surface.
-    *)
-    export getSlope :: static := proc(self :: PMatrix, i :: integer, j :: integer)
-        if self:-s <> 1 then
-            error "getSlope is only defined for P-Matrices corresponding to C*-surfaces, i.e. s has to be 1.";
-        end if;
-        return self:-d[1, doubleToSingleIndex(self:-format, i, j)] / self:-lss[i, j];
     end proc;
 
     (* ************************
@@ -1126,13 +1148,18 @@ end module:
 module TVarOne()
     option object;
 
+    # These fields are guaranteed to be filled when a TVarOne is created.
     export P, Sigma;
 
+    # These fields are only computed when needed. Use the getters below for them.
     local maximalXCones := undefined;
     local gorensteinIndex := undefined;
     local isGorensteinVal := undefined;
     local ampleCone := undefined;
     local isFanoVal := undefined;
+
+    # The following fields are only defined for K*-surfaces, i.e. when s = 1.
+    local intersectionNumbers := undefined;
 
     export ModuleApply :: static := proc()
         Object(TVarOne, _passed);
@@ -1191,7 +1218,7 @@ module TVarOne()
                 # Note that we do not require the P-Matrix to be slope-ordered.
                 
                 ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
-                    (j1, j2) -> getSlope(P, i, j1) > getSlope(P, i, j2)), 
+                    (j1, j2) -> P:-slopes[i, j1] > P:-slopes[i, j2]), 
                     i = 1 .. P:-r)];
                 
                 sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), i = 1 .. P:-r)};
@@ -1245,6 +1272,7 @@ module TVarOne()
                 else
                     error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
                 end if;
+
             elif P:-picardNumber = 1 then
                 # Input method (2)
                 # In this case, the picard number is one, hence there is only one complete fan in the lattice 
@@ -1334,6 +1362,178 @@ module TVarOne()
             setIsFanoVal(self, containsrelint(getAmpleCone(self), getAnticanClass(self:-P)));
         end if;
         return self:-isFanoVal
+    end proc;
+
+    export setIntersectionNumbers :: static := proc(self :: TVarOne, intersectionNumbers :: Array) self:-intersectionNumbers := intersectionNumbers; end proc;
+
+    export getIntersectionNumbers :: static := proc(X :: TVarOne)   
+        local P;
+
+        if type(X:-intersectionNumbers, undefined) or 'forceCompute' in [_passed] then
+            P := X:-P;
+            if X:-P:-s <> 1 then
+                error "Intersection numbers are only defined for K*-surfaces, i.e. s = 1.";
+            end if;
+
+            res := Array(1 .. ColumnDimension(P:-mat), 1 .. ColumnDimension(P:-mat), fill = 0);
+            ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
+                        (j1, j2) -> P:-slopes[i, j1] > P:-slopes[i, j2]), 
+                        i = 1 .. P:-r)];
+
+            # We use the formulas of Chapter 6 in the paper: "Log del pezzo surfaces with torus action" by Hättig, Hausen, Hummel
+            
+            # First, compute calligraphic m. This is encoded as a list of arrays, since we want to have
+            # the indexing go from 0 to n_i.
+            mcal := [];
+            for i from 1 to P:-r do
+                newM := Array(0 .. P:-ns[i], fill = 0);
+                if P:-case = 'EE' or P:-case = 'EP' then
+                    # There is an elliptic fixed point x^+
+                    newM[0] := - 1 / P:-mplus;
+                end if;
+                if P:-case = 'EE' or P:-case = 'PE' then
+                    # There is an elliptic fixed point x^-
+                    newM[P:-ns[i]] := 1 / P:-mminus;
+                end if;
+
+                for j from 1 to P:-ns[i] - 1 do
+                    newM[j] := 1 / (P:-slopes[i,ordered_indices[i,j]] - P:-slopes[i,ordered_indices[i,j+1]]);
+                end do;
+
+                mcal := [op(mcal), newM];
+            end do;
+
+            # First, compute intersection numbers of two adjacent rays in the leaves
+            # This is independent of the case of P
+            for i from 1 to P:-r do
+                for j_ from 1 to P:-ns[i] - 1 do
+                    j1 := ordered_indices[i,j_];
+                    j2 := ordered_indices[i,j_+1];
+                    k1 := doubleToSingleIndex(P:-format, i, j1);
+                    k2 := doubleToSingleIndex(P:-format, i, j2);
+                    res[k1,k2] := 1 / (P:-lss[i,j1] * P:-lss[i,j2]) * mcal[i][j_];
+                    res[k2,k1] := res[k1,k2];
+                end do;
+            end do:
+
+            # Now, compute the self intersection numbers of rays in the leaves
+            # This is independent of the case of P
+            for i from 1 to P:-r do
+                for j_ from 1 to P:-ns[i] do
+                    j := ordered_indices[i,j_];
+                    k := doubleToSingleIndex(P:-format, i, j);
+                    res[k,k] := - 1 / P:-lss[i][j]^2 * (mcal[i][j_ - 1] + mcal[i][j_]);
+                end do;
+            end do:
+
+            if P:-case = 'EE' then
+                # There are elliptic fixed points x^+ and x^-
+                for i1 from 1 to P:-r do
+                    for i2 in {seq(1 .. P:-r)} minus {i1} do
+                        j1 := ordered_indices[i1,1];
+                        j2 := ordered_indices[i2,1];
+                        k1 := doubleToSingleIndex(P:-format, i1, j1);
+                        k2 := doubleToSingleIndex(P:-format, i2, j2);
+                        if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
+                        else 
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][0];
+                        end if;
+                    end do;
+                end do;
+
+                for i1 from 1 to P:-r do
+                    for i2 in {seq(1 .. P:-r)} minus {i1} do
+                        j1 := ordered_indices[i1,P:-ns[i1]];
+                        j2 := ordered_indices[i2,P:-ns[i2]];
+                        k1 := doubleToSingleIndex(P:-format, i1, j1);
+                        k2 := doubleToSingleIndex(P:-format, i2, j2);
+                        if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
+                        else 
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][P:-ns[i1]];
+                        end if;
+                    end do;
+                end do;
+
+            elif P:-case = 'PE' then
+
+                kplus := doubleToSingleIndex(P:-format, -1, 1);
+                for i from 1 to P:-r do
+                    j := ordered_indices[i,1];
+                    k := doubleToSingleIndex(P:-format, i, j);
+                    res[k,kplus] := 1 / P:-lss[i][j];
+                    res[kplus,k] := res[k,kplus];
+                end do;
+                res[kplus, kplus] := - P:-mplus;
+
+                for i1 from 1 to P:-r do
+                    for i2 in {seq(1 .. P:-r)} minus {i1} do
+                        j1 := ordered_indices[i1,P:-ns[i1]];
+                        j2 := ordered_indices[i2,P:-ns[i2]];
+                        k1 := doubleToSingleIndex(P:-format, i1, j1);
+                        k2 := doubleToSingleIndex(P:-format, i2, j2);
+                        if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
+                        else 
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][P:-ns[i1]];
+                        end if;
+                    end do;
+                end do;
+
+            elif P:-case = 'EP' then
+
+                for i1 from 1 to P:-r do
+                    for i2 in {seq(1 .. P:-r)} minus {i1} do
+                        j1 := ordered_indices[i1,1];
+                        j2 := ordered_indices[i2,1];
+                        k1 := doubleToSingleIndex(P:-format, i1, j1);
+                        k2 := doubleToSingleIndex(P:-format, i2, j2);
+                        if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
+                        else 
+                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][0];
+                        end if;
+                    end do;
+                end do;
+
+                kminus := doubleToSingleIndex(P:-format, -1, 1);
+                for i from 1 to P:-r do
+                    j := ordered_indices[i,P:-ns[i]];
+                    k := doubleToSingleIndex(P:-format, i, j);
+                    res[k,kminus] := 1 / P:-lss[i][j];
+                    res[kminus,k] := res[k,kminus];
+                end do;
+                res[kminus, kminus] := P:-mminus;
+
+            elif P:-case = 'PP' then
+
+                kplus := doubleToSingleIndex(P:-format, -1, 1);
+                for i from 1 to P:-r do
+                    j := ordered_indices[i,1];
+                    k := doubleToSingleIndex(P:-format, i, j);
+                    res[k,kplus] := 1 / P:-lss[i][j];
+                    res[kplus,k] := res[k,kplus];
+                end do;
+                res[kplus, kplus] := - P:-mplus;
+
+                kminus := doubleToSingleIndex(P:-format, -1, 2);
+                for i from 1 to P:-r do
+                    j := ordered_indices[i,P:-ns[i]];
+                    k := doubleToSingleIndex(P:-format, i, j);
+                    res[k,kminus] := 1 / P:-lss[i][j];
+                    res[kminus,k] := res[k,kminus];
+                end do;
+                res[kminus, kminus] := P:-mminus;
+
+            end if;
+
+            setIntersectionNumbers(X, res);
+        
+        end if;
+
+        return X:-intersectionNumbers;
+
     end proc;
 
     (****************************
