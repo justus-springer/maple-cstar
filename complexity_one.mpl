@@ -1204,7 +1204,8 @@ module TVarOne()
     local isFanoVal := undefined;
 
     # The following fields are only defined for K*-surfaces, i.e. when s = 1.
-    local intersectionNumbers := undefined;
+    local intersectionTable := undefined;
+    local anticanonicalSelfIntersection := undefined;
 
     export ModuleApply :: static := proc()
         Object(TVarOne, _passed);
@@ -1385,23 +1386,25 @@ module TVarOne()
         return self:-isFanoVal
     end proc;
 
-    export setIntersectionNumbers :: static := proc(self :: TVarOne, intersectionNumbers :: Array) self:-intersectionNumbers := intersectionNumbers; end proc;
+    export setintersectionTable :: static := proc(self :: TVarOne, intersectionTable :: Array) self:-intersectionTable := intersectionTable; end proc;
 
-    export getIntersectionNumbers :: static := proc(X :: TVarOne)   
+    export getIntersectionTable :: static := proc(X :: TVarOne)   
         local P, res, ordered_indices, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
 
-        if type(X:-intersectionNumbers, undefined) or 'forceCompute' in [_passed] then
+        if type(X:-intersectionTable, undefined) or 'forceCompute' in [_passed] then
             P := X:-P;
             if X:-P:-s > 1 then
                 error "Intersection numbers are only defined for K*-surfaces, i.e. s = 1.";
             end if;
 
+            # We use the formulas of Chapter 6 in the paper: "Log del pezzo surfaces with torus action" by Hättig, Hausen, Hummel
+            # Note however that we do not require P to be slope-ordered, hence we have to generalize the formulas
+            # a bit by translating the indices through the `ordered_indices` array.
+
             res := Array(1 .. ColumnDimension(P:-mat), 1 .. ColumnDimension(P:-mat), fill = 0);
             ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
                         (j1, j2) -> P:-slopes[i, j1] > P:-slopes[i, j2]), 
                         i = 1 .. P:-r)];
-
-            # We use the formulas of Chapter 6 in the paper: "Log del pezzo surfaces with torus action" by Hättig, Hausen, Hummel
             
             # First, compute calligraphic m. This is encoded as a list of arrays, since we want to have
             # the indexing go from 0 to n_i.
@@ -1535,13 +1538,38 @@ module TVarOne()
 
             end if;
 
-            setIntersectionNumbers(X, res);
+            setintersectionTable(X, res);
         
         end if;
 
-        return X:-intersectionNumbers;
+        return X:-intersectionTable;
 
     end proc;
+
+    (*
+    Compute the intersection number of any two divisors, given as linear combinations
+    of the primitive invariant divisors D_X^{ij} and D_X^{\pm}.
+    The input data are lists of integers encoding the coefficients this linear combination.
+    *)
+    export intersectionNumber :: static := proc(X :: TVarOne, D1 :: list(integer), D2 :: list(integer))
+        
+        if nops(D1) <> X:-P:-n + X:-P:-m or nops(D2) <> X:-P:-n + X:-P:-m then
+            error "The list of integers encoding the divisor must have length n + m = %1", X:-P:-n + X:-P:-m;
+        end if;
+
+        return add([seq(seq(D1[k1] * D2[k2] * getIntersectionTable(X)[k1,k2], k2 = 1 .. nops(D2)), k1 = 1 .. nops(D1))]);
+
+    end proc;
+
+    export setAnticanonicalSelfIntersection :: static := proc(self :: TVarOne, anticanonicalSelfIntersection) self:-anticanonicalSelfIntersection := anticanonicalSelfIntersection; end proc;
+
+    export getAnticanonicalSelfIntersection :: static := proc(X :: TVarOne)
+        if type(X:-intersectionTable, undefined) or 'forceCompute' in [_passed] then
+            setAnticanonicalSelfIntersection(X, intersectionNumber(X, getAnticanCoefficients(X:-P), getAnticanCoefficients(X:-P)));
+        end if;
+        return X:-anticanonicalSelfIntersection;
+    end proc;
+
 
     (****************************
     *** ADMISSIBLE OPERATIONS ***
