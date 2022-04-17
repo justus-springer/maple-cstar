@@ -282,6 +282,7 @@ module PMatrix()
     end proc;
 
     local setSlopes :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
+        local i, j;
         self:-slopes := [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
         self:-mplus := add([seq(max(self:-slopes[i]), i = 1 .. self:-r)]);
         self:-mminus := add([seq(min(self:-slopes[i]), i = 1 .. self:-r)]);
@@ -1367,7 +1368,7 @@ module TVarOne()
     export setIntersectionNumbers :: static := proc(self :: TVarOne, intersectionNumbers :: Array) self:-intersectionNumbers := intersectionNumbers; end proc;
 
     export getIntersectionNumbers :: static := proc(X :: TVarOne)   
-        local P;
+        local P, res, ordered_indices, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
 
         if type(X:-intersectionNumbers, undefined) or 'forceCompute' in [_passed] then
             P := X:-P;
