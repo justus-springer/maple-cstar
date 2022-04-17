@@ -241,24 +241,68 @@ end module:
 module PMatrix()
     option object;
 
-    # These fields are guaranteed to be filled when a PMatrix is created.
-    export format, lss, d, mat, P0;
-    export r, ns, n, m, s, dim, picardNumber;
+    #########################################################################
+    ## These fields are guaranteed to be filled when a PMatrix is created. ##
+    #########################################################################
+
+    # Format data. Note that the picardNumber is just n+m - (r+s), hence we consider it
+    # part of the format.
+    export format, r, ns, n, m, s, dim, picardNumber;
+
+    # The exponents of the relations in the Cox Ring, encoded as a list of lists.
+    export lss;
+    
+    # Matrix data: `mat` is the entire matrix, `d` is only the lower `s` rows, `P0` only 
+    # the upper r-1 rows.
+    export mat, d, P0;
+
+    # Variables and relations in the Cox Ring
     export variables, monoimals, relations;
 
-    # These fields are only computed when needed. Use these getters below for these.
+    ####################################################################################
+    ## These fields are only computed when needed. Use these getters below for these. ##
+    ####################################################################################
+
+    # The divisor class group, encoded as a list of positive integers, where the first
+    # entry is the rank (= picardNumber) and the other entries are the elementary divisors of the torsion part
     local classGroup := undefined;
+
+    # Degree matrix of the Cox Ring
     local Q := undefined;
+    
+    # Free part of the degree matrix, i.e. the first `picardNumber` rows of `Q`
     local Q0 := undefined;
+
+    # Anticanonical class as a vector in the divisor class group
     local anticanClass := undefined;
     local anitcanCoefficients := undefined;
+
+    # Effective and moving cone in the rational vector space of the divisor class group.
     local effectiveCone := undefined;
     local movingCone := undefined;
+
+    # Says whether there exists a Fano variety having P as its PMatrix.
+    # This is equivalent to the anticanonical divisor lying in the moving cone.
     local admitsFanoVal := undefined;
 
-    # These fields are only defined for P-Matrices of surfaces, i.e. s = 1.
+    ###########################################################################
+    ## These fields are only defined for P-Matrices of surfaces, i.e. s = 1. ##
+    ## All of them are computed when the P-Matrix is created.                ##
+    ###########################################################################
+
+    # The case of the P-Matrix, i.e. its configuration of elliptic fixed points (E) 
+    # vs. parabolic fixed point curves (P). It is exactly one of the fixe strings:
+    #                     "EE", "PE", "EP", "PP+", "PP-".
+    # The naming follows the literature, e.g. Cox Rings chapter 5.4.1, except that we
+    # additionally differentiate between "PP+" and "PP-". The former has [0...1],[0...-1] as
+    # last two columns, the latter has [0...-1],[0...1].
     export case := undefined;
+
+    # The slopes of the rays in the fan. This is encoded as a list of lists, following the
+    # same indexing as in the `lss`.
     export slopes := undefined;
+
+    # The sum of the biggest resp. smallest slopes in each block.
     export mplus := undefined;
     export mminus := undefined;
 
@@ -281,21 +325,25 @@ module PMatrix()
         self:-relations := [seq(self:-monoimals[i] + self:-monoimals[i+1] + self:-monoimals[i+2], i = 1 .. f:-r - 2)];
     end proc;
 
-    local setSlopes :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
+    local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
         local i, j;
         self:-slopes := [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
         self:-mplus := add([seq(max(self:-slopes[i]), i = 1 .. self:-r)]);
         self:-mminus := add([seq(min(self:-slopes[i]), i = 1 .. self:-r)]);
         if self:-m = 0 then
-            self:-case := 'EE';
+            self:-case := "EE";
         elif self:-m = 1 then
             if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
-                self:-case := 'PE';
+                self:-case := "PE";
             elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
-                self:-case := 'EP';
+                self:-case := "EP";
             end if;
         elif self:-m = 2 then
-            self:-case := 'PP';
+            if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
+                self:-case := "PP+";
+            elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
+                self:-case := "PP-";
+            end if;
         end if;
     end proc;
 
@@ -413,7 +461,7 @@ module PMatrix()
 
                 # If this is a P-Matrix of a surface, set the slopes
                 if self:-s = 1 then 
-                    setSlopes(self, self:-d, self:-lss);
+                    setSurfaceData(self, self:-d, self:-lss);
                 end if;
 
                 # Construct the P-matrix from the given data
@@ -571,7 +619,7 @@ module PMatrix()
             
             # If this a P-Matrix of a surface, compute the slopes
             if self:-s = 1 then
-                setSlopes(self, self:-d, self:-lss);
+                setSurfaceData(self, self:-d, self:-lss);
             end if;
         end if;
 
@@ -1226,48 +1274,24 @@ module TVarOne()
                     doubleToSingleIndex(P:-format, i, ordered_indices[i,j+1])}, 
                     j = 1 .. P:-ns[i] - 1), i = 1 .. P:-r)};
                 
-                if P:-m = 0 then
-                  # Case (e-e)
-                  self:-Sigma := {sigma_plus} union taus union {sigma_minus};
-                elif P:-m = 1 then
-                    # Check if the zeros are where they should be
-                    for k from 1 to P:-r + P:-s - 2 do
-                        if not P:-mat[k, P:-n + P:-m] = 0 then
-                            error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p)."
-                                  "But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
-                        end if;
-                    end do;
-                    if P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = 1 then
-                        # Case (p-e)
-                        taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m} , i = 1 .. P:-r)};
-                        self:-Sigma := taus_plus union taus union {sigma_minus};
-                    elif P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1 then
-                        # Case (e-p)
-                        taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
-                        self:-Sigma := {sigma_plus} union taus union taus_minus;
-                    else
-                        error "Here, s = m = 1, hence this P-matrix should belong to a C*-surface of type (p-e) or (e-p)." 
-                              "But the last column is not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
-                    end if;
-                elif P:-m = 2 then
-                    # Check if the zeros are where they should be
-                    for k from 1 to P:-r + P:-s - 2 do
-                        if not (P:-mat[k, P:-n + P:-m - 1] = 0 and P:-mat[k, P:-n + P:-m] = 0) then
-                            error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p)."
-                                  "But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
-                        end if;
-                    end do;
-                    # Check if there is +1 and -1 in the correct places
-                    if not (P:-mat[P:-r - 1 + P:-s, P:-n + P:-m - 1] = 1 and P:-mat[P:-r - 1 + P:-s, P:-n + P:-m] = -1) then
-                        error "Here, s = 1 and m = 2, hence this P-matrix should belong to a C*-surface of type (p-p)."
-                              "But the last two columns are not of the right form for that, see section 5.4.1 of \"Cox Rings\".";
-                    end if;
-                    # Case (p-p)
+                if P:-case = "EE" then
+                    self:-Sigma := {sigma_plus} union taus union {sigma_minus};
+                elif P:-case = "PE" then
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    self:-Sigma := taus_plus union taus union {sigma_minus};
+                elif P:-case = "EP" then
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    self:-Sigma := {sigma_plus} union taus union taus_minus;
+                elif P:-case = "PP+" then
                     taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m - 1} , i = 1 .. P:-r)};
                     taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
                     self:-Sigma := taus_plus union taus union taus_minus;
+                elif P:-case = "PP-" then
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m - 1} , i = 1 .. P:-r)};
+                    self:-Sigma := taus_plus union taus union taus_minus;
                 else
-                    error "Here, s = 1, hence this P-matrix should belong to a C*-surface. But those cannot have m > 2, see section 5.4.1 of \"Cox Rings\".";
+                    error "Invalid case. P:-case should be one of the five strings: \"EE\", \"PE\", \"EP\", \"PP+\", \"PP-\"";
                 end if;
 
             elif P:-picardNumber = 1 then
@@ -1282,7 +1306,7 @@ module TVarOne()
                 return TVarOne[ModuleCopy](self, proto, P, getAnticanClass(P));
             else
                 error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface."
-                      "Therefore, you must provide the fan Sigma as input.";
+                      "Therefore, you must provide a fan Sigma or a weight w as input.";
             end if;
         end if;
     end;
@@ -1368,7 +1392,7 @@ module TVarOne()
 
         if type(X:-intersectionNumbers, undefined) or 'forceCompute' in [_passed] then
             P := X:-P;
-            if X:-P:-s <> 1 then
+            if X:-P:-s > 1 then
                 error "Intersection numbers are only defined for K*-surfaces, i.e. s = 1.";
             end if;
 
@@ -1400,7 +1424,7 @@ module TVarOne()
                 mcal := [op(mcal), newM];
             end do;
 
-            # First, compute intersection numbers of two adjacent rays in the leaves
+            # Compute intersection numbers of two adjacent rays in the leaves.
             # This is independent of the case of P
             for i from 1 to P:-r do
                 for j_ from 1 to P:-ns[i] - 1 do
@@ -1413,7 +1437,7 @@ module TVarOne()
                 end do;
             end do:
 
-            # Now, compute the self intersection numbers of rays in the leaves
+            # Compute the self intersection numbers of rays in the leaves
             # This is independent of the case of P
             for i from 1 to P:-r do
                 for j_ from 1 to P:-ns[i] do
