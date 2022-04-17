@@ -1408,11 +1408,11 @@ module TVarOne()
             mcal := [];
             for i from 1 to P:-r do
                 newM := Array(0 .. P:-ns[i], fill = 0);
-                if P:-case = 'EE' or P:-case = 'EP' then
+                if P:-case = "EE" or P:-case = "EP" then
                     # There is an elliptic fixed point x^+
                     newM[0] := - 1 / P:-mplus;
                 end if;
-                if P:-case = 'EE' or P:-case = 'PE' then
+                if P:-case = "EE" or P:-case = "PE" then
                     # There is an elliptic fixed point x^-
                     newM[P:-ns[i]] := 1 / P:-mminus;
                 end if;
@@ -1447,8 +1447,12 @@ module TVarOne()
                 end do;
             end do:
 
-            if P:-case = 'EE' then
-                # There are elliptic fixed points x^+ and x^-
+            if P:-case = "EE" or P:-case = "EP" then
+                ##########################################  
+                ## There is an elliptic fixed point x^+ ##
+                ##########################################
+
+                # Intersection numbers of the highest rays in each block with each other.
                 for i1 from 1 to P:-r do
                     for i2 in {seq(1 .. P:-r)} minus {i1} do
                         j1 := ordered_indices[i1,1];
@@ -1462,7 +1466,37 @@ module TVarOne()
                         end if;
                     end do;
                 end do;
+            else
+                ################################################
+                ## There is a parabolic fixed point curce D^+ ##
+                ################################################
 
+                # kplus is the index of the divisor D^+. This depends on the case.
+                if P:-case = "PE" or P:-case = "PP+" then
+                    kplus := doubleToSingleIndex(P:-format, -1, 1);
+                elif P:-case = "PP-" then
+                    kplus := doubleToSingleIndex(P:-format, -1, 2);
+                end if;
+
+                # Intersection numbers of the highest rays of each block with D^+
+                for i from 1 to P:-r do
+                    j := ordered_indices[i,1];
+                    k := doubleToSingleIndex(P:-format, i, j);
+                    res[k,kplus] := 1 / P:-lss[i][j];
+                    res[kplus,k] := res[k,kplus];
+                end do;
+
+                # Self intersection of D^+
+                res[kplus, kplus] := - P:-mplus;
+
+            end if;
+
+            if P:-case = "EE" or P:-case = "PE" then
+                ##########################################  
+                ## There is an elliptic fixed point x^- ##
+                ##########################################
+
+                # Intersection numbers of the lowest rays in each block with each other.
                 for i1 from 1 to P:-r do
                     for i2 in {seq(1 .. P:-r)} minus {i1} do
                         j1 := ordered_indices[i1,P:-ns[i1]];
@@ -1476,75 +1510,27 @@ module TVarOne()
                         end if;
                     end do;
                 end do;
+            else 
+                ################################################
+                ## There is a parabolic fixed point curce D^- ##
+                ################################################
 
-            elif P:-case = 'PE' then
+                # kminus is the index of the divisor D^+. This depends on the case.
+                if P:-case = "EP" or P:-case = "PP-" then
+                    kminus := doubleToSingleIndex(P:-format, -1, 1);
+                elif P:-case = "PP+" then
+                    kminus := doubleToSingleIndex(P:-format, -1, 2);
+                end if;
 
-                kplus := doubleToSingleIndex(P:-format, -1, 1);
-                for i from 1 to P:-r do
-                    j := ordered_indices[i,1];
-                    k := doubleToSingleIndex(P:-format, i, j);
-                    res[k,kplus] := 1 / P:-lss[i][j];
-                    res[kplus,k] := res[k,kplus];
-                end do;
-                res[kplus, kplus] := - P:-mplus;
-
-                for i1 from 1 to P:-r do
-                    for i2 in {seq(1 .. P:-r)} minus {i1} do
-                        j1 := ordered_indices[i1,P:-ns[i1]];
-                        j2 := ordered_indices[i2,P:-ns[i2]];
-                        k1 := doubleToSingleIndex(P:-format, i1, j1);
-                        k2 := doubleToSingleIndex(P:-format, i2, j2);
-                        if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
-                        else 
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][P:-ns[i1]];
-                        end if;
-                    end do;
-                end do;
-
-            elif P:-case = 'EP' then
-
-                for i1 from 1 to P:-r do
-                    for i2 in {seq(1 .. P:-r)} minus {i1} do
-                        j1 := ordered_indices[i1,1];
-                        j2 := ordered_indices[i2,1];
-                        k1 := doubleToSingleIndex(P:-format, i1, j1);
-                        k2 := doubleToSingleIndex(P:-format, i2, j2);
-                        if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
-                        else 
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][0];
-                        end if;
-                    end do;
-                end do;
-
-                kminus := doubleToSingleIndex(P:-format, -1, 1);
+                # Intersection numbers of the highest rays of each block with D^-
                 for i from 1 to P:-r do
                     j := ordered_indices[i,P:-ns[i]];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,kminus] := 1 / P:-lss[i][j];
                     res[kminus,k] := res[k,kminus];
                 end do;
-                res[kminus, kminus] := P:-mminus;
 
-            elif P:-case = 'PP' then
-
-                kplus := doubleToSingleIndex(P:-format, -1, 1);
-                for i from 1 to P:-r do
-                    j := ordered_indices[i,1];
-                    k := doubleToSingleIndex(P:-format, i, j);
-                    res[k,kplus] := 1 / P:-lss[i][j];
-                    res[kplus,k] := res[k,kplus];
-                end do;
-                res[kplus, kplus] := - P:-mplus;
-
-                kminus := doubleToSingleIndex(P:-format, -1, 2);
-                for i from 1 to P:-r do
-                    j := ordered_indices[i,P:-ns[i]];
-                    k := doubleToSingleIndex(P:-format, i, j);
-                    res[k,kminus] := 1 / P:-lss[i][j];
-                    res[kminus,k] := res[k,kminus];
-                end do;
+                # Self intersection of D^-
                 res[kminus, kminus] := P:-mminus;
 
             end if;
