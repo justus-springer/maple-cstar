@@ -58,7 +58,7 @@ module PFormat()
             if i < 1 then error "each element of ns must be at least 1." end if:
         end do:
         if m < 0 then error "m must be at least 0." end if:
-        if s < 1 then error "s must be at least 1." end if:
+        if s < 0 then error "s must be at least 0." end if:
         self:-r := nops(ns);
         self:-ns := ns;
         self:-n := add(ns);
@@ -479,10 +479,6 @@ module PMatrix()
                     error "All entries of P must be of type: integer";
                 end if;
             end do;
-
-            if RowDimension(P) < r then
-                error "P must have at least r = %1 rows", r;
-            end if;
 
             # Get the first vector l1 by looking at the first row of `P`.
             # We move right until the entries are no longer negative.
