@@ -1163,13 +1163,16 @@ module PMatrix()
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
-        local P, Q, n, m, picardNumber, classGroup, anticanClass, admitsFano, i;
+        local P, Q, n, m, picardNumber, classGroup, anticanClass, admitsFano, i, relations;
         print(P = self:-mat);
         print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
+        print(relations = self:-relations);
         print(Q = getQ(self));
         print(classGroup = getClassGroup(self));
         print(picardNumber = self:-picardNumber);
         print(anticanClass = getAnticanClass(self));
+        print(effectiveConeRays = rays(getEffectiveCone(self)));
+        print(movingConeRays = rays(getMovingCone(self)));
         print(admitsFano = PMatrix[admitsFano](self));
     end;
 
@@ -1564,7 +1567,7 @@ module TVarOne()
     export setAnticanonicalSelfIntersection :: static := proc(self :: TVarOne, anticanonicalSelfIntersection) self:-anticanonicalSelfIntersection := anticanonicalSelfIntersection; end proc;
 
     export getAnticanonicalSelfIntersection :: static := proc(X :: TVarOne)
-        if type(X:-intersectionTable, undefined) or 'forceCompute' in [_passed] then
+        if type(X:-anticanonicalSelfIntersection, undefined) or 'forceCompute' in [_passed] then
             setAnticanonicalSelfIntersection(X, intersectionNumber(X, getAnticanCoefficients(X:-P), getAnticanCoefficients(X:-P)));
         end if;
         return X:-anticanonicalSelfIntersection;
@@ -1658,11 +1661,24 @@ module TVarOne()
     end;
 
     export TVarOneInfo :: static := proc(self :: TVarOne)
-        local maximalXCones, gorensteinIndex, gorenstein;
-        PMatrixInfo(self:-P);
+        local P, relations, maximalXCones, Q, classGroup, picardNumber, anticanClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
+        print(P = self:-P:-mat);
+        print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
+        print(relations = self:-P:-relations);
         print(maximalXCones = getMaximalXCones(self));
+        print(Q = getQ(self:-P));
+        print(classGroup = getClassGroup(self:-P));
+        print(picardNumber = self:-P:-picardNumber);
+        print(anticanClass = getAnticanClass(self:-P));
+        print(effectiveConeRays = rays(getEffectiveCone(self:-P)));
+        print(movingConeRays = rays(getMovingCone(self:-P)));
+        print(ampleConeRays = rays(getAmpleCone(self)));
+        print(isFano = TVarOne[isFano](self));
         print(gorensteinIndex = getGorensteinIndex(self));
-        print(gorenstein = isGorenstein(self));
+        if self:-P:-s = 1 then
+            print(intersectionTable = getIntersectionTable(self));
+            print(anticanonicalSelfIntersection = getAnticanonicalSelfIntersection(self));
+        end if;
     end;
 
 end module:
