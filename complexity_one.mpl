@@ -257,7 +257,7 @@ module PMatrix()
     export mat, d, P0;
 
     # Variables and relations in the Cox Ring
-    export variables, monoimals, relations;
+    export variables, monomials, relations;
 
     ####################################################################################
     ## These fields are only computed when needed. Use these getters below for these. ##
@@ -320,9 +320,9 @@ module PMatrix()
     local setRelations :: static := proc(self :: PMatrix, f :: PFormat, lss :: list(list(integer)))
         local i, j;
         self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
-        self:-monoimals := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
+        self:-monomials := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
         # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
-        self:-relations := [seq(self:-monoimals[i] + self:-monoimals[i+1] + self:-monoimals[i+2], i = 1 .. f:-r - 2)];
+        self:-relations := [seq(self:-monomials[i] + self:-monomials[i+1] + self:-monomials[i+2], i = 1 .. f:-r - 2)];
     end proc;
 
     local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
@@ -423,7 +423,7 @@ module PMatrix()
                 self:-P0 := P:-P0;
                 self:-d := P:-d;
                 self:-variables := P:-variables;
-                self:-monoimals := P:-monoimals;
+                self:-monomials := P:-monomials;
                 self:-relations := P:-relations;
             else
                 # Input method (1)
@@ -475,8 +475,10 @@ module PMatrix()
                             seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]))], i = 2 .. self:-r)];
                 self:-P0 := Matrix(rows0);
 
-                assertColumnsPrimitive(self);
-                assertColumnsGenerateFullCone(self);
+                if not 'skipChecks' in [_passed] then
+                    assertColumnsPrimitive(self);
+                    assertColumnsGenerateFullCone(self);
+                end if;
             end if;
 
         elif type(_passed[3], list(list(integer))) then
@@ -611,8 +613,10 @@ module PMatrix()
                 end do;
             end do;
 
-            assertColumnsPrimitive(self);
-            assertColumnsGenerateFullCone(self);
+            if not 'skipChecks' in [_passed] then
+                assertColumnsPrimitive(self);
+                assertColumnsGenerateFullCone(self);
+            end if;
 
             self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
             setRelations(self, self:-format, lss);
@@ -1725,7 +1729,7 @@ ImportTVarOneList := proc(stmt)
 
     result := [];
     while Step(stmt) = RESULT_ROW do
-        P := PMatrix(Fetch(stmt, INDEX_S), Matrix(parse(Fetch(stmt, INDEX_P))));
+        P := PMatrix(Fetch(stmt, INDEX_S), Matrix(parse(Fetch(stmt, INDEX_P))), 'skipChecks');
         # Read in any already avaliable metadata about P, if available
         if type(INDEX_PICARDNUMBER, integer) then
             setPicardNumber(P, Fetch(stmt, INDEX_PICARDNUMBER));
