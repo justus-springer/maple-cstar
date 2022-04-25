@@ -132,7 +132,7 @@ module PFormat()
             return doubleToSingleIndex(self, -1, rho[j]);
         end if;
         newFormat := PFormat(applyPermToList(sigma, self:-ns), self:-m, self:-s);
-        return doubleToSingleIndex(newFormat, sigma[i], taus[sigma[i]][j]);
+        return doubleToSingleIndex(newFormat, sigma[i], taus[i][j]);
     end proc;
 
     (* 
