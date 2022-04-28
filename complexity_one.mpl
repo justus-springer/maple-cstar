@@ -1559,6 +1559,7 @@ module TVarOne()
     The input data are lists of integers encoding the coefficients this linear combination.
     *)
     export intersectionNumber :: static := proc(X :: TVarOne, D1 :: list(integer), D2 :: list(integer))
+        local k1, k2;
         
         if nops(D1) <> X:-P:-n + X:-P:-m or nops(D2) <> X:-P:-n + X:-P:-m then
             error "The list of integers encoding the divisor must have length n + m = %1", X:-P:-n + X:-P:-m;
@@ -1665,7 +1666,7 @@ module TVarOne()
     end;
 
     export TVarOneInfo :: static := proc(self :: TVarOne)
-        local P, relations, maximalXCones, Q, classGroup, picardNumber, anticanClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
+        local P, i, relations, maximalXCones, Q, classGroup, picardNumber, anticanClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
         print(P = self:-P:-mat);
         print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
         print(relations = self:-P:-relations);
