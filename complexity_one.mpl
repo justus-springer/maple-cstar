@@ -256,9 +256,6 @@ module PMatrix()
     # the upper r-1 rows.
     export mat, d, P0;
 
-    # Variables and relations in the Cox Ring
-    export variables, monomials, relations;
-
     ####################################################################################
     ## These fields are only computed when needed. Use these getters below for these. ##
     ####################################################################################
@@ -315,14 +312,6 @@ module PMatrix()
         self:-s := f:-s;
         self:-dim := f:-dim;
         self:-picardNumber := f:-picardNumber;
-    end proc;
-    
-    local setRelations :: static := proc(self :: PMatrix, f :: PFormat, lss :: list(list(integer)))
-        local i, j;
-        self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
-        self:-monomials := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
-        # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
-        self:-relations := [seq(self:-monomials[i] + self:-monomials[i+1] + self:-monomials[i+2], i = 1 .. f:-r - 2)];
     end proc;
 
     local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
@@ -422,9 +411,6 @@ module PMatrix()
                 self:-mat := P:-mat;
                 self:-P0 := P:-P0;
                 self:-d := P:-d;
-                self:-variables := P:-variables;
-                self:-monomials := P:-monomials;
-                self:-relations := P:-relations;
             else
                 # Input method (1)
                 # PFormat, list(list(integer)), Matrix.
@@ -455,9 +441,6 @@ module PMatrix()
                         error "length of %-1 vector in lss does not match given P-format. Expected length: %2. Given length: %3.", i, self:-ns[i], nops(self:-lss[i]);
                     end if;
                 end do:
-
-                # Construct the relations in the Cox Ring.
-                setRelations(self, self:-format, _passed[4]);
 
                 # If this is a P-Matrix of a surface, set the slopes
                 if self:-s = 1 then 
@@ -619,7 +602,6 @@ module PMatrix()
             end if;
 
             self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
-            setRelations(self, self:-format, lss);
             
             # If this a P-Matrix of a surface, compute the slopes
             if self:-s = 1 then
@@ -1167,10 +1149,9 @@ module PMatrix()
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
-        local P, Q, n, m, picardNumber, classGroup, anticanClass, admitsFano, i, relations;
+        local P, Q, n, m, picardNumber, classGroup, anticanClass, admitsFano, i;
         print(P = self:-mat);
         print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
-        print(relations = self:-relations);
         print(Q = getQ(self));
         print(classGroup = getClassGroup(self));
         print(picardNumber = self:-picardNumber);
@@ -1201,7 +1182,12 @@ module TVarOne()
     option object;
 
     # These fields are guaranteed to be filled when a TVarOne is created.
-    export P, Sigma;
+    export P;
+    export Sigma := undefined;
+    export A := undefined;
+
+    # Variables and relations in the Cox Ring
+    export variables, monomials, relations;
 
     # These fields are only computed when needed. Use the getters below for them.
     local maximalXCones := undefined;
@@ -1218,14 +1204,44 @@ module TVarOne()
         Object(TVarOne, _passed);
     end;
 
+    local setRelations :: static := proc(self :: TVarOne, P :: PMatrix, A :: Matrix)
+        local f, lss, i, j, alpha;
+        f := P:-format;
+        lss := P:-lss;
+        self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
+        self:-monomials := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
+
+        alpha := (i,j) -> Determinant(Matrix([Column(A, [i,j])]));
+        # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
+        self:-relations := [seq(alpha(i+1,i+2) * self:-monomials[i] + alpha(i+2, i) * self:-monomials[i+1] + alpha(i, i+1) * self:-monomials[i+2], i = 1 .. f:-r - 2)];
+    end proc;
+
     (*
-    This method creates a T-Variety of complexity one from various kinds of data. It supports three
-    different input methods:
-    (1) P :: PMatrix, where P is a P-Matrix of a C* surface, i.e. P:-s = 1.
-    (2) P :: PMatrix, where P:-picardNumber = 1.
-    (3) P :: PMatrix, where admitsFano(P) = true.
-    (4) P :: PMatrix, w :: {Vector, list}, where w is contained in the relative interior of the moving cone of P.
-    (5) P :: PMatrix, Sigma :: set(set(integer)).
+    This method creates a T-Variety of complexity one from various kinds of data. 
+    The standard input method looks like this:
+
+    P :: PMatrix, Sigma :: {set(set(integer)), Vector, list}, A :: Matrix.
+
+    In some cases (see below), `Sigma` is optional. `A` is always optional.
+
+    The parameter `Sigma` encodes the fan of the ambient toric variety. It can either be given directly as a set of
+    cones, where each cone is encoded by the set of column indices of P it contains, or it can be given by 
+    a weight in the rational vector space associated to the class group of P lying in the moving cone of P. 
+    In the latter case, we take the fan to be the gale dual of the bunch of orbit cones generated by that weight.
+
+    The parameter `Sigma` is optional in the following three cases:
+
+    (1) s = 1. In this case, we have a C*-surface and there is only one possible minimal ambient fan, which we
+        can explicitly construct from P (see Cox Rings 5.4.1.6).
+    (2) picardNumber = 1. In this case, the number of rays of the fan is one more than the ambient dimension, hence
+        there is only one complete fan having P as generator matrix.
+    (3) P admits a Fano variety. In this case, the anticanonical class is contained in the moving cone of P, so we can 
+        use it to define a bunch of cones and hence an ambient fan. The resulting variety will be the unique Fano variety
+        having P as its PMatrix. Note however, that there are other possible non-Fano varieties with P as PMatrix.
+
+    The parameter `A` is the coefficient matrix for the trinomial euqations defining the variety.
+    It is an optional parameter. If it is not proved, the standard coefficient matrix is used, hence we
+    have one's everywhere in the defining trinomials.
 
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
@@ -1233,16 +1249,25 @@ module TVarOne()
 
         self:-P := P;
 
-        if _npassed = 4 then
-            if type(_passed[4], Vector) or type(_passed[4], list(integer)) then
-                # Input method (4).
+        # Check the arguments, set Sigma and A if present.
+        if _npassed > 3 then
+            if type(_passed[4], Matrix) then
+                # No Sigma provided, coefficient Matrix is fourth argument.
+                if RowDimension(_passed[4]) <> 2 or ColumnDimension(_passed[4]) <> P:-r then
+                    error "The coefficient matrix must be a (2 x r)-Matrix. Here, r = %1", P:-r;
+                end if;
+                self:-A := _passed[4];
+            elif type(_passed[4], set(set(integer))) then
+                # Fan Sigma provided
+                self:-Sigma := _passed[4];
+            elif type(_passed[4], {Vector, list(integer)}) then
+                # Weight w provided. Compute the associated fan.
                 w := _passed[4];
 
                 if not containsrelint(getMovingCone(P), w) then
-                    error "The given weight w = % does not lie in the moving cone of P.", convert(w, list);
+                    error "The given weight w = %1 does not lie in the moving cone of P.", convert(w, list);
                 end if;
 
-                # In this case, we compute the bunch of cones associated to w.
                 # TODO: Make this computation more efficient by incrementally searching only the minimal cones containing w.
                 candidates := [op(combinat[powerset]({seq(1 .. P:-n + P:-m)}) minus {{}})];
                 minimalBunchCones := {};
@@ -1257,15 +1282,35 @@ module TVarOne()
                 end do;
                 # We dualize to get the maximal cones of the associated fan.
                 self:-Sigma := map(c -> {seq(1 .. P:-n + P:-m)} minus c, minimalBunchCones);
-            elif type(_passed[4], set(set(integer))) then
-                # Input method (5).
-                self:-Sigma := _passed[4];
             else
-                error "Expected second argument to be either of type `Vector`, `list` or `set(set(integer))`.";
+                error "Expected second argument to be of type set(set(integer), Vector, list or Matrix";
             end if;
-        else
+
+            if _npassed > 4 then
+                if type(_passed[5], Matrix) then
+                    if RowDimension(_passed[5]) <> 2 or ColumnDimension(_passed[5]) <> P:-r then
+                        error "The coefficient matrix must be a (2 x r)-Matrix. Here, r = %1", P:-r;
+                    end if;
+                    self:-A := _passed[5];
+                else
+                    error "Expected third argument to be of type Matrix";
+                end if;
+            end if;
+        end if;
+
+        # If no coefficient matrix has been provided, use the standard one.
+        if type(self:-A, undefined) then
+            self:-A := Matrix(2, P:-r, [[1, 0, -1 $ P:-r - 2], [0, 1, seq(-i, i = 1 .. P:-r - 2)]]);
+        end if;
+
+        # Construct the trinomial relations in the Cox Ring
+        setRelations(self, P, self:-A);
+
+        # If no Sigma has been provided, check if we are in one of the allowed cases (1)-(3)
+        # and compute it.
+        if type(self:-Sigma, undefined) then
             if P:-s = 1 then
-                # Input method (1): X is a C* surface.
+                # Here, X is a C*-surface.
                 # In this case, the moving cone equals the semiample cone, hence there is only one
                 # possible fan for the P-Matrix. We can write it down explicitly, following Construction 5.4.1.6 of "Cox Rings".
                 # Note that we do not require the P-Matrix to be slope-ordered.
@@ -1303,17 +1348,15 @@ module TVarOne()
                 end if;
 
             elif P:-picardNumber = 1 then
-                # Input method (2)
                 # In this case, the picard number is one, hence there is only one complete fan in the lattice 
                 # containing the columns of the P-Matrix as rays.
                 numColumns := ColumnDimension(P:-mat);
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             elif admitsFano(P) then
-                # Input method (3).
                 # In this case, we call the procedure again with the anticanonical class as the weight.
                 return TVarOne[ModuleCopy](self, proto, P, getAnticanClass(P));
             else
-                error "This PMatrix is neither of Picard number one, nor is it the PMatrix of a surface."
+                error "This PMatrix is neither of Picard number one, nor is it a surface, nor does it admit a Fano variety."
                       "Therefore, you must provide a fan Sigma or a weight w as input.";
             end if;
         end if;
@@ -1669,7 +1712,7 @@ module TVarOne()
         local P, i, relations, maximalXCones, Q, classGroup, picardNumber, anticanClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
         print(P = self:-P:-mat);
         print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
-        print(relations = self:-P:-relations);
+        print(relations = self:-relations);
         print(maximalXCones = getMaximalXCones(self));
         print(Q = getQ(self:-P));
         print(classGroup = getClassGroup(self:-P));
