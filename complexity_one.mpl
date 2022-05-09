@@ -382,7 +382,7 @@ module PMatrix()
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, rows, rows0, i, j, P, r, s, ns, numZerosBefore;
+        local lss, ls, l, format, d, rows, rows0, i, j, P, r, s, ns, numZerosBefore;
         if _npassed = 2 then error "not enough arguments." end if;
 
         if type(_passed[3], 'PFormat') then
@@ -476,11 +476,16 @@ module PMatrix()
                 error "Expected 2nd argument to be of type: Matrix";
             end if;
 
-            self:-lss := _passed[3];
-            self:-ns := map(nops, self:-lss);
-            self:-d := _passed[4];
-            self:-format := PFormat(self:-ns, ColumnDimension(self:-d) - add(self:-ns), RowDimension(self:-d));
-            return PMatrix[ModuleCopy](self, proto, self:-format, self:-lss, self:-d);
+            lss := _passed[3];
+            d := _passed[4];
+            ns := map(nops, lss);
+            format := PFormat(ns, ColumnDimension(d) - add(ns), RowDimension(d));
+            setFormat(self, format);
+            P := PMatrix(format, lss, d);
+            self:-lss := P:-lss;
+            self:-mat := P:-mat;
+            self:-P0 := P:-P0;
+            self:-d := P:-d;
 
         elif type(_passed[3], integer) then
             # Input method (4)
@@ -869,10 +874,16 @@ module PMatrix()
     (*
     Removes all redundant blocks from a P-Matrix, i.e. all blocks with a single 1 inside the L-block.
     *)
+    # TODO: This fails unexpectedlty on the input
+    # PMatrix(2, <-1,1,0,0;-1,0,1,0;-1,0,0,1>);
+    # It removes the first column but then the columns do not generate the space anymore.
+    # I don't know what's going on here and what's the right way to fix it.
     export removeRedundantColumns := proc(P :: PMatrix)
-        local newLss, redundantIndices, newD;
-        newLss := remove(ls -> ls = [1], P:-lss);
+        local redundantIndices, newLss, newD, i;
         redundantIndices := map(i -> doubleToSingleIndex(P:-format, i, 1), select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]));
+        # We can't have less than two blocks in a P-Matrix, hence we only remove up to r-2 blocks.
+        redundantIndices := redundantIndices[1 .. min(nops(redundantIndices), P:-r - 2)];
+        newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {op(redundantIndices)})];
         newD := DeleteColumn(P:-d, redundantIndices);
         return PMatrix(newLss, newD);
     end proc;
