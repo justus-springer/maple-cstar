@@ -875,6 +875,7 @@ module PMatrix()
     Removes a single redundant column from a P-Matrix.
     *)
     local removeSingleRedundantColumn := proc(P_ :: PMatrix, i0 :: integer)
+        local P, A, B, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
         # the redundant columns. We construct the A-Matrix necessary for this.
@@ -901,7 +902,7 @@ module PMatrix()
     necessary to achieve all zeros in the columns under the redundant blocks.
     *)
     export removeRedundantColumns := proc(P :: PMatrix)
-        local redundantIndices, newLss, newD, i;
+        local redundantIndices;
         redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
         # If there is a redundant block and we still have more than two blocks, remove it.
         if nops(redundantIndices) > 0 and P:-r > 2 then
