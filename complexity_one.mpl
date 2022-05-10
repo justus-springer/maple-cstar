@@ -282,6 +282,15 @@ module PMatrix()
     # This is equivalent to the anticanonical divisor lying in the moving cone.
     local admitsFanoVal := undefined;
 
+    # Says whether a variety having P as its PMatrix is toric.
+    # For irredundant P, this is equivalent to P:-r = 2.
+    local isToricVal := undefined;
+
+    # Says whether the PMatrix is irredundant, i.e. has no redundant blocks consisting of
+    # a single one. You can use the procedure `removeRedundantColumns` on a P-Matrix to pass
+    # to get an irredundant PMatrix equivalent to the original one.
+    local isIrredundantVal := undefined;
+
     ###########################################################################
     ## These fields are only defined for P-Matrices of surfaces, i.e. s = 1. ##
     ## All of them are computed when the P-Matrix is created.                ##
@@ -635,6 +644,10 @@ module PMatrix()
 
     export setAdmitsFanoVal :: static := proc(self :: PMatrix, admitsFanoVal :: boolean) self:-admitsFanoVal := admitsFanoVal; end proc;
 
+    export setIsToricVal :: static := proc(self :: PMatrix, isToricVal :: boolean) self:-isToricVal := isToricVal; end proc;
+    
+    export setIsIrredundantVal :: static := proc(self :: PMatrix, isIrredundantVal :: boolean) self:-isIrredundantVal := isIrredundantVal; end proc;
+
     (*
     Compute the smith normal form of the transpose of the matrix.
     From this we can read off the degree matrix.
@@ -758,6 +771,22 @@ module PMatrix()
         return self:-admitsFanoVal;
     end;
 
+    export isToric :: static := proc(P :: PMatrix)
+        if type(P:-isToricVal, undefined) or 'forceCompute' in [_passed] then
+            setIsToricVal(P, evalb(removeRedundantColumns(P):-r = 2));
+        end if;
+        return P:-isToricVal;
+    end proc;
+
+    export isIrredundant :: static := proc(P :: PMatrix)
+        local redundantIndices;
+        if type(P:-isIrredundantVal, undefined) or 'forceCompute' in [_passed] then
+            redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
+            setIsIrredundantVal(P, evalb(P:-r = 2 or redundantIndices = []));
+        end if;
+        return P:-isIrredundantVal;        
+    end proc;
+
     (*
     Computes the local class group of the variety associated to a P-Matrix.
     The first argument is the P-Matrix. The second argument is a cone corresponding
@@ -765,7 +794,7 @@ module PMatrix()
     The output is encoded as a list of integers, where the first entry is the rank of
     the free part and all remaining entries are the elementary divisors of the torsion part.
     *)
-    export getLocalClassGroup := proc(self :: PMatrix, cone :: set(integer))
+    export getLocalClassGroup :: static := proc(self :: PMatrix, cone :: set(integer))
         local Psub, S_, U_, localRank, localClassGroup, i;
         # We need to compute a smith form of a submatrix of the P-Matrix, where
         # we removed all columns that do not occur on `cone`.
@@ -795,7 +824,7 @@ module PMatrix()
       the blocks is applied *before* the taus, i.e. `taus[i]` is a permutation of [1 .. ns[sigma[i]]].
     - `rho` is a permutation of the last `m` columns, i.e. a permutation of the numbers [1 .. m].
     *)
-    export applyAdmissibleColumnOperation := proc(P :: PMatrix, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+    export applyAdmissibleColumnOperation :: static := proc(P :: PMatrix, sigma :: Perm, taus :: list(Perm), rho :: Perm)
         local bundledPerm, permutationMatrix, newD, newLss, i, j;
         # First, bundle the column operation into a single permutation of [1 .. n + m]
         # This is done at the level of the format.
@@ -814,7 +843,7 @@ module PMatrix()
     Creates a new P-Matrix by applying an admissible column operation of type (1), i.e. 
     permutation of blocks. The parameter `sigma` must be a permutation of the numbers [1 .. r]
     *)
-    export applyAdmissibleColumnOperation1 := proc(P :: PMatrix, sigma :: Perm)
+    export applyAdmissibleColumnOperation1 :: static := proc(P :: PMatrix, sigma :: Perm)
         applyAdmissibleColumnOperation(P, sigma, [Perm([]) $ P:-r], Perm([]));
     end proc;
 
@@ -823,7 +852,7 @@ module PMatrix()
     permutation of column within a given block `i`. The parameter `tau` must be a permutation
     of the numbers [1 .. ns[i]].
     *)
-    export applyAdmissibleColumnOperation2 := proc(P :: PMatrix, i :: integer, tau :: Perm)
+    export applyAdmissibleColumnOperation2 :: static := proc(P :: PMatrix, i :: integer, tau :: Perm)
         applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ (i-1), tau, Perm([]) $ P:-r - i], Perm([]));
     end proc;
 
@@ -832,7 +861,7 @@ module PMatrix()
     permutation of the last m rows. The parameter `rho` must be a permutation of the
     numbers [1 .. m].
     *)
-    export applyAdmissibleColumnOperation3 := proc(P :: PMatrix, rho :: Perm)
+    export applyAdmissibleColumnOperation3 :: static := proc(P :: PMatrix, rho :: Perm)
         applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ P:-r], rho);
     end proc;
 
@@ -845,7 +874,7 @@ module PMatrix()
     ( A B )     ( d d')     ( AL + Bd   Bd')
 
     *)
-    export applyAdmissibleRowOperation := proc(P :: PMatrix, A :: Matrix, B :: Matrix)
+    export applyAdmissibleRowOperation :: static := proc(P :: PMatrix, A :: Matrix, B :: Matrix)
         local identityMatrix, zeroMatrix, newP;
         if not type(A, 'Matrix'(P:-s, P:-r - 1, integer)) then
             error "Expected second argument to be of type: Matrix(%1, %2, integer)", P:-s, P:-r - 1;
@@ -874,7 +903,7 @@ module PMatrix()
     (*
     Removes a single redundant column from a P-Matrix.
     *)
-    local removeSingleRedundantColumn := proc(P_ :: PMatrix, i0 :: integer)
+    local removeSingleRedundantColumn :: static := proc(P_ :: PMatrix, i0 :: integer)
         local P, A, B, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
@@ -901,7 +930,7 @@ module PMatrix()
     Note that this can change the lower `s` rows of a P-Matrix, as admissible row operations may be 
     necessary to achieve all zeros in the columns under the redundant blocks.
     *)
-    export removeRedundantColumns := proc(P :: PMatrix)
+    export removeRedundantColumns :: static := proc(P :: PMatrix)
         local redundantIndices;
         redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
         # If there is a redundant block and we still have more than two blocks, remove it.
@@ -918,7 +947,7 @@ module PMatrix()
     The columns of block are sorted descendingly. The blocks themselves are sorted first descendingly
     according to size, and within the same size lexicographically by the lss.
     *)
-    export sortColumnsByLss := proc(P0 :: PMatrix)
+    export sortColumnsByLss :: static := proc(P0 :: PMatrix)
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
 
         # First, remove any redundant columns
@@ -978,7 +1007,7 @@ module PMatrix()
     Sort the columns of a P-Matrix of a K*-surface descendingly by the values of the alphas (adjusted slopes).
     This is experimental and only works for surfaces at the moment.
     *)
-    export sortColumnsByAdjustedSlopes := proc(P0 :: PMatrix)
+    export sortColumnsByAdjustedSlopes :: static := proc(P0 :: PMatrix)
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
 
         # First, remove any redundant columns
@@ -1052,7 +1081,7 @@ module PMatrix()
     You can obtain the admissible row operation turning `P1` into `P2` by supplying the parameter `'output' = out`,
     where `out` is a list of the names 'result', 'A', 'B' and 'S'.
     *)
-    export areRowEquivalent := proc(P1 :: PMatrix, P2 :: PMatrix)
+    export areRowEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
         local resBool, resA, resB, resS, identityMatrix, zeroMatrix, A_, B_, S_, newP, sol, resultList, str, i, j;
         resBool, resA, resB, resS := false, undefined, undefined, undefined;
         
@@ -1115,7 +1144,7 @@ module PMatrix()
     theoretical work first.
 
     *)
-    export areEquivalent := proc(P1__ :: PMatrix, P2__ :: PMatrix)
+    export areEquivalent :: static := proc(P1__ :: PMatrix, P2__ :: PMatrix)
         local Ps, P, i, P1_, P2_, P1, P2, P11, P12, newP1, sol, j;
 
         P1_ := removeRedundantColumns(P1__);
@@ -1130,7 +1159,7 @@ module PMatrix()
             # TORIC CASE
             P1 := P1_;
             P2 := P2_;
-            newP1 := Matrix(RowDimension(P1:-mat), RowDimension(P1:-mat), symbol = 's') . P1:-mat;
+            newP1 := Matrix(RowDimension(P1:-mat), RowDimension(P1:-mat), symbol = 'x') . P1:-mat;
             sol := isolve({seq(seq(newP1[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = 1 .. RowDimension(P1:-mat))});
             if sol = NULL then
                 return false;
