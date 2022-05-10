@@ -287,7 +287,7 @@ module PMatrix()
     local isToricVal := undefined;
 
     # Says whether the PMatrix is irredundant, i.e. has no redundant blocks consisting of
-    # a single one. You can use the procedure `removeRedundantColumns` on a P-Matrix to pass
+    # a single one. You can use the procedure `removeRedundantBlocks` on a P-Matrix to pass
     # to get an irredundant PMatrix equivalent to the original one.
     local isIrredundantVal := undefined;
 
@@ -773,7 +773,7 @@ module PMatrix()
 
     export isToric :: static := proc(P :: PMatrix)
         if type(P:-isToricVal, undefined) or 'forceCompute' in [_passed] then
-            setIsToricVal(P, evalb(removeRedundantColumns(P):-r = 2));
+            setIsToricVal(P, evalb(removeRedundantBlocks(P):-r = 2));
         end if;
         return P:-isToricVal;
     end proc;
@@ -903,7 +903,7 @@ module PMatrix()
     (*
     Removes a single redundant column from a P-Matrix.
     *)
-    local removeSingleRedundantColumn :: static := proc(P_ :: PMatrix, i0 :: integer)
+    local removeSingleRedundantBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
         local P, A, B, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
@@ -930,13 +930,13 @@ module PMatrix()
     Note that this can change the lower `s` rows of a P-Matrix, as admissible row operations may be 
     necessary to achieve all zeros in the columns under the redundant blocks.
     *)
-    export removeRedundantColumns :: static := proc(P :: PMatrix)
+    export removeRedundantBlocks :: static := proc(P :: PMatrix)
         local redundantIndices;
         redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
         # If there is a redundant block and we still have more than two blocks, remove it.
         if nops(redundantIndices) > 0 and P:-r > 2 then
             # Recursive call
-            return removeRedundantColumns(removeSingleRedundantColumn(P, redundantIndices[1]));
+            return removeRedundantBlocks(removeSingleRedundantBlock(P, redundantIndices[1]));
         else
             return P;
         end if;
@@ -951,7 +951,7 @@ module PMatrix()
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
 
         # First, remove any redundant columns
-        P1 := removeRedundantColumns(P0);
+        P1 := removeRedundantBlocks(P0);
         # Sort each individual block
         taus_ := [];
         for i from 1 to P1:-r do
@@ -1011,7 +1011,7 @@ module PMatrix()
         local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
 
         # First, remove any redundant columns
-        P1 := removeRedundantColumns(P0);
+        P1 := removeRedundantBlocks(P0);
 
         # The sortkey to sort the columns by
         sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
@@ -1144,42 +1144,40 @@ module PMatrix()
     theoretical work first.
 
     *)
-    export areEquivalent :: static := proc(P1__ :: PMatrix, P2__ :: PMatrix)
-        local Ps, P, i, P1_, P2_, P1, P2, P11, P12, newP1, sol, j;
+    export areEquivalent :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
+        local Ps, P, i, P1, P2, P11, P12, newP1, sol, j;
 
-        P1_ := removeRedundantColumns(P1__);
-        P2_ := removeRedundantColumns(P2__);
+        # First, remove any redundant blocks.
+        P1 := removeRedundantBlocks(P1_);
+        P2 := removeRedundantBlocks(P2_);
+
+        # After removing redundant blocks, the number of blocks must coincide.
+        if P1:-r <> P2:-r then
+            return false;
+        end if;
 
         # Varieties of different dimension can't be isomorphic.
-        if P1_:-s <> P2_:-s then
+        if P1:-s <> P2:-s then
             return false;
         end if; 
 
-        if P1_:-r = 1 then
+        if P1:-r = 2 then
             # TORIC CASE
-            P1 := P1_;
-            P2 := P2_;
+            # In this case, the question is purely toric. We need to find an invertible integer 
+            # matrix `S` sending P1 to P2.
             newP1 := Matrix(RowDimension(P1:-mat), RowDimension(P1:-mat), symbol = 'x') . P1:-mat;
             sol := isolve({seq(seq(newP1[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = 1 .. RowDimension(P1:-mat))});
-            if sol = NULL then
-                return false;
-            else
-                return true;
-            end if;
-
-        elif P1_:-s = 1 then
+            return evalb(sol <> NULL);
+        elif P1:-s = 1 then
             # SURFACE CASE
             # We sort the columns by adjusted slopes
-            if 'skipSorting' in [_passed] then
-                P1 := P1_;
-                P2 := P2_;
-            else
-                P1 := sortColumnsByAdjustedSlopes(P1_);
-                P2 := sortColumnsByAdjustedSlopes(P2_);
+            if not 'skipSorting' in [_passed] then
+                P1 := sortColumnsByAdjustedSlopes(P1);
+                P2 := sortColumnsByAdjustedSlopes(P2);
             end if;
             P11 := P1;
             P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1, Matrix([[0 $ P1:-r - 1]]), Matrix([[-1]])));
-            # After sorting by the alphas, P1 and P2 are equivalent if and only if they are row-equivalent
+            # After sorting by adjusted slopes, P1 and P2 are equivalent if and only if they are row-equivalent
             # i.e. no need to worry about column permutations any more.
             # (With the caveat that we don't fix the direction of the P-Matrix, which is why we work both with P1 and its negative at the same time)
             return areRowEquivalent(P11, P2) or areRowEquivalent(P12, P2);
@@ -1194,7 +1192,6 @@ module PMatrix()
                 P2 := sortColumnsByLss(P2_);
             end if;
             # After sorting, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
-            # Note that `sortColumnsByLss` also removes redundant columns.
             if P1:-lss <> P2:-lss then
                 return false;
             end if;
@@ -1702,10 +1699,10 @@ module TVarOne()
     *** ADMISSIBLE OPERATIONS ***
     *****************************)
 
-    export removeRedundantColumns :: static := proc(X :: TVarOne)
+    export removeRedundantBlocks :: static := proc(X :: TVarOne)
         local P, newP, removedColumnIndices, oldToNewIndex, newSigma;
         P := X:-P;
-        newP := PMatrix[removeRedundantColumns](P);
+        newP := PMatrix[removeRedundantBlocks](P);
         removedColumnIndices := select(k -> P:-lss[(singleToDoubleIndex(P:-format, k))[1]] = [1], [seq(1 .. P:-n + P:-m)]);
         oldToNewIndex := proc(k :: integer)
             if k in removedColumnIndices then 
@@ -1768,7 +1765,7 @@ module TVarOne()
     export sortColumnsByLss := proc(X0 :: TVarOne)
         local X, newP, sigma_, taus_, bundledPerm, newSigma, newX;
         # First remove redundant columns. Note that this also changes the fan.
-        X := removeRedundantColumns(X0);
+        X := removeRedundantBlocks(X0);
         # Now, sort the columns using the method from `PMatrix`.
         newP, sigma_, taus_ := op(PMatrix[sortColumnsByLss](X:-P, output = ['normalized', 'sigma', 'taus']));
         # Adjust the fan accordingly, by applying the permutation given from the sorting.
