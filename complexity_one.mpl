@@ -1937,7 +1937,7 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
         # Can be disabled by the 'noChecks' option
         if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = [] then
             P := X:-P;
-            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
             Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
             Bind(stmt, 3, P:-n, valuetype = "integer");
@@ -1954,7 +1954,20 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
             Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
             Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
             Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
-            Bind(stmt, 17, convert(sortColumnsByLss(X:-P):-lss, string), valuetype = "text");
+            Bind(stmt, 17, convert(sortColumnsByLss(P):-lss, string), valuetype = "text");
+            Bind(stmt, 18, convert(rays(getEffectiveCone(P)), string), valuetype = "text");
+            Bind(stmt, 19, convert(rays(getMovingCone(P)), string), valuetype = "text");
+            Bind(stmt, 20, convert(rays(getAmpleCone(X)), string), valuetype = "text");
+            Bind(stmt, 21, isFano(X), valuetype = "integer");
+            Bind(stmt, 22, convert(X:-variables, string), valuetype = "text");
+            Bind(stmt, 23, convert(X:-monomials, string), valuetype = "text");
+            Bind(stmt, 24, convert(X:-relations, string), valuetype = "text");
+            Bind(stmt, 25, convert(convert(map(x -> [numer(x), denom(x)], getIntersectionTable(X)), list, nested), string), valuetype = "text");
+            Bind(stmt, 26, convert([numer(getAnticanonicalSelfIntersection(X)), denom(getAnticanonicalSelfIntersection(X))], string), valuetype = "text");
+            Bind(stmt, 27, convert(getAnticanonicalSelfIntersection(X), hfloat), valuetype = "float");
+            Bind(stmt, 28, isToric(P), valuetype = "integer");
+            Bind(stmt, 29, isIrredundant(P), valuetype = "integer");
+
 
             Step(stmt);
             Finalize(stmt);
