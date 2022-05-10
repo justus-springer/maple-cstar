@@ -872,20 +872,44 @@ module PMatrix()
     *******************)
 
     (*
-    Removes all redundant blocks from a P-Matrix, i.e. all blocks with a single 1 inside the L-block.
+    Removes a single redundant column from a P-Matrix.
     *)
-    # TODO: This fails unexpectedlty on the input
-    # PMatrix(2, <-1,1,0,0;-1,0,1,0;-1,0,0,1>);
-    # It removes the first column but then the columns do not generate the space anymore.
-    # I don't know what's going on here and what's the right way to fix it.
+    local removeSingleRedundantColumn := proc(P_ :: PMatrix, i0 :: integer)
+        P := P_;
+        # First, we have to apply admissible row operations to achieve all zeros in the d-block under
+        # the redundant columns. We construct the A-Matrix necessary for this.
+        # This step is necessary to ensure the columns of the resulting P-Matrix still generate the whole
+        # space as a cone.
+        if i0 = 1 then
+            A := Matrix(P:-s, P:-r - 1, (k,l) -> if l = 1 then P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+        else
+            A := Matrix(P:-s, P:-r - 1, (k,l) -> if l = i0 - 1 then -P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+        end if;
+        # Just the identity
+        B := Matrix(P:-s, P:-s, shape = diagonal, 1);
+        P := applyAdmissibleRowOperation(P, A, B);
+        # Now construct the new P-Matrix data
+        newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {i0})];
+        newFormat := PFormat([seq(P:-ns[i], i in {seq(1 .. P:-r)} minus {i0})], P:-m, P:-s);
+        newD := DeleteColumn(P:-d, add(P:-ns[1 .. i0-1]) + 1);
+        return PMatrix(newFormat, newLss, newD);
+    end proc;
+
+    (*
+    Removes all redundant blocks from a P-Matrix, i.e. all blocks with a single 1 inside the L-block.
+    Note that this can change the lower `s` rows of a P-Matrix, as admissible row operations may be 
+    necessary to achieve all zeros in the columns under the redundant blocks.
+    *)
     export removeRedundantColumns := proc(P :: PMatrix)
         local redundantIndices, newLss, newD, i;
-        redundantIndices := map(i -> doubleToSingleIndex(P:-format, i, 1), select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]));
-        # We can't have less than two blocks in a P-Matrix, hence we only remove up to r-2 blocks.
-        redundantIndices := redundantIndices[1 .. min(nops(redundantIndices), P:-r - 2)];
-        newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {op(redundantIndices)})];
-        newD := DeleteColumn(P:-d, redundantIndices);
-        return PMatrix(newLss, newD);
+        redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
+        # If there is a redundant block and we still have more than two blocks, remove it.
+        if nops(redundantIndices) > 0 and P:-r > 2 then
+            # Recursive call
+            return removeRedundantColumns(removeSingleRedundantColumn(P, redundantIndices[1]));
+        else
+            return P;
+        end if;
     end proc;
 
     (*
@@ -1090,19 +1114,30 @@ module PMatrix()
     theoretical work first.
 
     *)
-    export areEquivalent := proc(P1_ :: PMatrix, P2_ :: PMatrix)
-        local Ps, P, i, P1, P2, P11, P12;
+    export areEquivalent := proc(P1__ :: PMatrix, P2__ :: PMatrix)
+        local Ps, P, i, P1_, P2_, P1, P2, P11, P12, newP1, sol, j;
 
-        if P1_:-r = 2 or P2_:-r = 2 then
-            error "The equivalence check is only defined for non-toric varieties, i.e. r must be at least 3.";
-        end if;
+        P1_ := removeRedundantColumns(P1__);
+        P2_ := removeRedundantColumns(P2__);
 
         # Varieties of different dimension can't be isomorphic.
         if P1_:-s <> P2_:-s then
             return false;
-        end if;
+        end if; 
 
-        if P1_:-s = 1 then
+        if P1_:-r = 1 then
+            # TORIC CASE
+            P1 := P1_;
+            P2 := P2_;
+            newP1 := Matrix(RowDimension(P1:-mat), RowDimension(P1:-mat), symbol = 's') . P1:-mat;
+            sol := isolve({seq(seq(newP1[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = 1 .. RowDimension(P1:-mat))});
+            if sol = NULL then
+                return false;
+            else
+                return true;
+            end if;
+
+        elif P1_:-s = 1 then
             # SURFACE CASE
             # We sort the columns by adjusted slopes
             if 'skipSorting' in [_passed] then
