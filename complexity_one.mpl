@@ -903,7 +903,7 @@ module PMatrix()
     (*
     Removes a single redundant column from a P-Matrix.
     *)
-    local removeSingleRedundantBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
+    export removeSingleRedundantBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
         local P, A, B, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
@@ -1699,20 +1699,25 @@ module TVarOne()
     *** ADMISSIBLE OPERATIONS ***
     *****************************)
 
-    export removeRedundantBlocks :: static := proc(X :: TVarOne)
-        local P, newP, removedColumnIndices, oldToNewIndex, newSigma;
-        P := X:-P;
-        newP := PMatrix[removeRedundantBlocks](P);
-        removedColumnIndices := select(k -> P:-lss[(singleToDoubleIndex(P:-format, k))[1]] = [1], [seq(1 .. P:-n + P:-m)]);
-        oldToNewIndex := proc(k :: integer)
-            if k in removedColumnIndices then 
-                return NULL;
-            else 
-                return k - nops(select(k1 -> k1 < k, removedColumnIndices));
-            end if;
-        end proc;
+    export removeSingleRedundantBlock :: static := proc(X :: TVarOne, i0 :: integer)
+        local newP, oldToNewIndex, newSigma;
+        newP := PMatrix[removeSingleRedundantBlock](X:-P, i0);
+        oldToNewIndex := k -> if k < add(X:-P:-ns[1 .. i0 - 1]) + 1 then k else k - 1 end if;
         newSigma := map(cones -> map(oldToNewIndex, cones), X:-Sigma);
         return TVarOne(newP, newSigma);
+    end proc;
+
+    export removeRedundantBlocks :: static := proc(X :: TVarOne)
+        local P, redundantIndices;
+        P := X:-P;
+        redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
+        # If there is a redundant block and we still have more than two blocks, remove it.
+        if nops(redundantIndices) > 0 and P:-r > 2 then
+            # Recursive call
+            return removeRedundantBlocks(removeSingleRedundantBlock(X, redundantIndices[1]));
+        else
+            return X;
+        end if;
     end proc;
 
     (*
@@ -1769,7 +1774,7 @@ module TVarOne()
         # Now, sort the columns using the method from `PMatrix`.
         newP, sigma_, taus_ := op(PMatrix[sortColumnsByLss](X:-P, output = ['normalized', 'sigma', 'taus']));
         # Adjust the fan accordingly, by applying the permutation given from the sorting.
-        bundledPerm := bundleColumnPermutation(newP:-format, sigma_, taus_, Perm([]));
+        bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
         newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
         newX := TVarOne(newP, newSigma);
         return newX;
@@ -1888,17 +1893,20 @@ Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a 
 It returns the list of rowids in the database where the P-Matrix is equivalent to the given one. 
 If the P-Matrix does not occur, it returns the empty list.
 *)
-FindInDatabase := proc(connection, tableName :: string, X0 :: TVarOne)
-    local X, P, stmt, Ps, M, rowids, i, resids;
-    # First, normalize the P-Matrix.
-    X := sortColumnsByLss(X0);
+FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
+    local P, stmtString, stmt, Ps, M, rowids, i, resids;
     P := X:-P;
-    stmt := Prepare(connection, cat("SELECT rowid,s,P FROM ", tableName, " WHERE ",
-        "orderedLss = \"", P:-lss, "\" AND ",
+    stmtString := cat("SELECT rowid,s,P FROM ", tableName, " WHERE ",
         "m = ", P:-m, " AND ",
         "s = ", P:-s, " AND ",
         "classGroup = \"", getClassGroup(X:-P), "\" AND ",
-        "gorensteinIndex = ", getGorensteinIndex(X)));
+        "gorensteinIndex = ", getGorensteinIndex(X));
+    # Use the 'lss' as search criterion, only if X is non-toric.
+    if not isToric(P) then
+        stmtString := cat(stmtString, " AND orderedLss = \"", sortColumnsByLss(P):-lss, "\"");
+    end if;
+    
+    stmt := Prepare(connection, stmtString);
     Ps := ImportTVarOneList(stmt);
     M := FetchAll(stmt):
     rowids := [seq(M[i,1], i = 1 .. RowDimension(M))];
