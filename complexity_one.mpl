@@ -874,15 +874,15 @@ module PMatrix()
     ( A B )     ( d d')     ( AL + Bd   Bd')
 
     *)
-    export applyAdmissibleRowOperation :: static := proc(P :: PMatrix, A :: Matrix, B :: Matrix)
+    export applyAdmissibleRowOperation :: static := proc(P :: PMatrix, C :: Matrix, T :: Matrix)
         local identityMatrix, zeroMatrix, newP;
-        if not type(A, 'Matrix'(P:-s, P:-r - 1, integer)) then
+        if not type(C, 'Matrix'(P:-s, P:-r - 1, integer)) then
             error "Expected second argument to be of type: Matrix(%1, %2, integer)", P:-s, P:-r - 1;
         end if;
-        if not type(B, 'Matrix'(P:-s, P:-s, integer)) then
+        if not type(T, 'Matrix'(P:-s, P:-s, integer)) then
             error "Expected third argument to be of type: Matrix(%1, %1, integer)", P:-s;
         end if;
-        if not abs(Determinant(B)) = 1 then
+        if not abs(Determinant(T)) = 1 then
             error "Third argument must be a unimodular matrix, i.e. its determinant must be 1 or -1";
         end if;
         # An (r-1) x (r-1) identity matrix.
@@ -892,7 +892,7 @@ module PMatrix()
         # Multiply P from the left with
         # ( E  0 )
         # ( A  B )
-        newP := <<identityMatrix | zeroMatrix>, <A | B>> . P:-mat;
+        newP := <<identityMatrix | zeroMatrix>, <C | T>> . P:-mat;
         return PMatrix(P:-s, newP);
     end proc;
 
@@ -1079,28 +1079,28 @@ module PMatrix()
     (*
     Checks whether two P-Matrices `P1` and `P2` are equivalent to each other by admissible row operations.
     You can obtain the admissible row operation turning `P1` into `P2` by supplying the parameter `'output' = out`,
-    where `out` is a list of the names 'result', 'A', 'B' and 'S'.
+    where `out` is a list of the names 'result', 'C', 'T' and 'S'.
     *)
     export areRowEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        local resBool, resA, resB, resS, identityMatrix, zeroMatrix, A_, B_, S_, newP, sol, resultList, str, i, j;
-        resBool, resA, resB, resS := false, undefined, undefined, undefined;
+        local resBool, resC, resT, resS, identityMatrix, zeroMatrix, C_, T_, S_, newP, sol, resultList, str, i, j;
+        resBool, resC, resT, resS := false, undefined, undefined, undefined;
         
         # P-Matrices of different tower structure (lss) are never row-equivalent.
         if P1:-lss = P2:-lss then
             identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
             zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
-            A_ := Matrix(P1:-s, P1:-r - 1, symbol = 'a');
-            B_ := Matrix(P1:-s, P1:-s, symbol = 'b');
-            S_ := <<identityMatrix | zeroMatrix>, <A_ | B_>>;
+            C_ := Matrix(P1:-s, P1:-r - 1, symbol = 'a');
+            T_ := Matrix(P1:-s, P1:-s, symbol = 'b');
+            S_ := <<identityMatrix | zeroMatrix>, <C_ | T_>>;
             newP := S_ . P1:-mat;
             sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
             if sol = NULL then
-                resBool, resA, resB, resS := false, undefined, undefined, undefined;
+                resBool, resC, resT, resS := false, undefined, undefined, undefined;
             else
-                if abs(Determinant(subs(sol, B_))) = 1 then
+                if abs(Determinant(subs(sol, T_))) = 1 then
                     resBool := true;
-                    resA := subs(sol, A_);
-                    resB := subs(sol, B_);
+                    resC := subs(sol, C_);
+                    resT := subs(sol, T_);
                     resS := subs(sol, S_);
                 end if;
             end if;
@@ -1116,10 +1116,10 @@ module PMatrix()
                     for str in rhs(_passed[i]) do
                         if str = 'result' then
                             resultList := [op(resultList), resBool];
-                        elif str = 'A' then
-                            resultList := [op(resultList), resA];
-                        elif str = 'B' then
-                            resultList := [op(resultList), resB];
+                        elif str = 'C' then
+                            resultList := [op(resultList), resC];
+                        elif str = 'T' then
+                            resultList := [op(resultList), resT];
                         elif str = 'S' then
                             resultList := [op(resultList), resS];
                         end if;
@@ -1760,8 +1760,8 @@ module TVarOne()
     Creates a new T-Variety of Complexity One by applying an admissible row operation. 
     See also `PMatrix[applyAdmissibleRowOperation]`.
     *)
-    export applyAdmissibleRowOperation := proc(X :: TVarOne, A :: Matrix, B :: Matrix)
-        return TVarOne(PMatrix[applyAdmissibleRowOperation](X:-P, A, B), X:-Sigma);
+    export applyAdmissibleRowOperation := proc(X :: TVarOne, C :: Matrix, T :: Matrix)
+        return TVarOne(PMatrix[applyAdmissibleRowOperation](X:-P, C, T), X:-Sigma);
     end proc;
 
     (*
