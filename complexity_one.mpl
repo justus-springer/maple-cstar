@@ -1160,7 +1160,10 @@ module PMatrix()
         if P1:-s <> P2:-s then
             return false;
         end if; 
-
+        
+        # DISABLED FOR NOW
+        # Only check isomorphism as complexity-one varieties
+        (*
         if P1:-r = 2 then
             # TORIC CASE
             # In this case, the question is purely toric. We need to find an invertible integer 
@@ -1168,7 +1171,8 @@ module PMatrix()
             newP1 := Matrix(RowDimension(P1:-mat), RowDimension(P1:-mat), symbol = 'x') . P1:-mat;
             sol := isolve({seq(seq(newP1[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = 1 .. RowDimension(P1:-mat))});
             return evalb(sol <> NULL);
-        elif P1:-s = 1 then
+        *)
+        if P1:-s = 1 then
             # SURFACE CASE
             # We sort the columns by adjusted slopes
             if not 'skipSorting' in [_passed] then
