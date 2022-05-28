@@ -2,7 +2,7 @@ ComplexityOne := module()
 
 option package;
 
-export PFormat, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ImportTVarOne, ExportTVarOneList, performOnDatabase;
+export PFormat, AdmissibleOperation, PMatrix, TVarOne, FindInDatabase, ImportTVarOneList, ImportTVarOne, ExportTVarOneList, performOnDatabase;
 
 ## TODO: Remove dependency on MDSpackage.
 uses LinearAlgebra, Database[SQLite];
@@ -124,27 +124,6 @@ module PFormat()
         return add(self:-ns[1 .. i-1]) + j
     end proc:
 
-    (* Helper for `bundleColumnPermutation` *)
-    export bundleColumnPermutationApply := proc(self :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, k :: integer)
-        local i, j, newFormat;
-        i, j := singleToDoubleIndex(self, k);
-        if i = -1 then
-            return doubleToSingleIndex(self, -1, rho[j]);
-        end if;
-        newFormat := PFormat(applyPermToList(sigma, self:-ns), self:-m, self:-s);
-        return doubleToSingleIndex(newFormat, sigma[i], taus[i][j]);
-    end proc;
-
-    (* 
-    Bundles the data of an admissible column operation into a single permutation of indices {1 .. n+m}. Here:
-    - `sigma` is the permutation of blocks, i.e. a permutation of the numbers {1 .. r},
-    - `taus` is a list of permutations, where `taus[i]` is a permutation of the numbers {1 .. ns[i]} and
-    - `rho` is the permutation of the last `m` columns, i.e. a permutation of the numbers {1 .. m}
-    *)
-    export bundleColumnPermutation := proc(self :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
-        return Perm(map(i -> bundleColumnPermutationApply(self, sigma, taus, rho, i), [seq(1 .. self:-n + self:-m)]));
-    end proc;
-
     (*
     Checks whether a given `cone` is big with respect to a given PFormat.
     Here, a cone is called big if for every i = 0,...,r-1, we have
@@ -233,6 +212,199 @@ module PFormat()
     end;
 
 end module:
+
+(*****************************************************************************
+**********************      ADMISSIBLE OPERATION       ***********************
+******************************************************************************)
+
+module AdmissibleOperation()
+    option object;
+
+    export formatFrom, sigma, taus, rho, C, T, U, ds;
+    export formatTo, bundledPerm, bundledPermutationMatrix, sigmaPermutationMatrix, B, S, D;
+
+    export ModuleApply :: static := proc()
+        Object(AdmissibleOperation, _passed);
+    end proc;
+
+    export ModuleCopy :: static := proc(self :: AdmissibleOperation, proto :: AdmissibleOperation,
+        formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, C :: Matrix, T :: Matrix, U :: Matrix, ds :: list(complex), $)
+
+        local bundledPermApply, zeroMatrix;
+
+        # Copy given data
+        self:-formatFrom := formatFrom;
+        self:-sigma := sigma;
+        self:-taus := taus;
+        self:-rho := rho;
+        self:-C := C;
+        self:-T := T;
+        self:-U := U;
+        self:-ds := ds;
+
+        # Input checking
+
+        if nops(taus) <> formatFrom:-r then
+            error "Expected `taus` to be a list of length r = %1", formatFrom:-r;
+        end if;
+
+        if not type(C, 'Matrix'(formatFrom:-s, formatFrom:-r - 1, integer)) then
+            error "Expected C to be of type Matrix(%1,%2,integer)", formatFrom:-s, formatFrom:-r - 1;
+        end if;
+
+        if not type(T, 'Matrix'(formatFrom:-s, formatFrom:-s, integer)) then
+            error "Expected T to be of type Matrix(%1,%1,integer)", formatFrom:-s;
+        end if;
+
+        if not abs(Determinant(T)) = 1 then
+            error "T must be a unimodular matrix, i.e. its determinant must be 1 or -1";
+        end if;
+
+        if not type(U, 'Matrix'(2, 2, complex)) then
+            error "U must be a 2x2 matrix.";
+        end if;
+
+        if Determinant(U) = 0 then
+            error "U must be invertible.";
+        end if;
+
+        if nops(ds) <> formatFrom:-r then
+            error "Expected `ds` to be a list of length r = %1 with nonzero complex entries.", formatFrom:-r;
+        end if;
+
+        for i from 1 to formatFrom:-r do
+            if ds[i] = 0 then
+                error "entries of `ds` cannot be zero.";
+            end if;
+        end do;
+
+        # Construct missing data
+        self:-formatTo := PFormat(applyPermToList(sigma, formatFrom:-ns), formatFrom:-m, formatFrom:-s);
+        bundledPermApply := proc(k :: integer)
+            local i, j;
+            i, j := singleToDoubleIndex(formatFrom, k);
+            if i = -1 then
+                return doubleToSingleIndex(self:-formatTo, -1, rho[j]);
+            end if;
+            return doubleToSingleIndex(self:-formatTo, sigma[i], taus[i][j]);
+        end proc;
+        self:-bundledPerm := Perm(map(bundledPermApply, [seq(1 .. formatFrom:-n + formatFrom:-m)]));
+
+        self:-bundledPermutationMatrix := Matrix(formatFrom:-n + formatFrom:-m, formatFrom:-n + formatFrom:-m, 
+            (i,j) -> if i = self:-bundledPerm[j] then 1 else 0 end if);
+    
+        self:-B := Matrix(formatFrom:-r - 1, formatFrom:-r - 1,
+            (i,j) -> if sigma[j+1] = 1 then -1 
+                     elif sigma[j+1] = i+1 then 1
+                     else 0 end if);
+        
+        zeroMatrix := Matrix(formatFrom:-r - 1, formatFrom:-s, fill = 0);
+        self:-S := <<self:-B | zeroMatrix>, <C | T>>;
+
+        self:-sigmaPermutationMatrix := Matrix(formatFrom:-r, formatFrom:-r, 
+            (i,j) -> if i = sigma[j] then 1 else 0 end if);
+
+        self:-D := Matrix(formatFrom:-r, formatFrom:-r, Vector(ds), shape = diagonal);
+        
+    end proc;
+
+    ##############################
+    ## Alternative constructors ##
+    ##############################
+
+    export Identity :: static := proc(format :: PFormat)
+        AdmissibleOperation(format, Perm([]), [Perm([]) $ format:-r], Perm([]), Matrix(format:-s, format:-r - 1, fill = 0), Matrix(format:-s, format:-s, shape = diagonal, 1), Matrix([[1,0],[0,1]]), [1 $ format:-r]);
+    end proc;
+
+    export POperation :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, C :: Matrix, T :: Matrix)
+        AdmissibleOperation(formatFrom, sigma, taus, rho, C, T, Matrix([[1,0],[0,1]]), [1 $ formatFrom:-r]);
+    end proc;
+
+    export ColumnOperation :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+        AdmissibleOperation[POperation](formatFrom, sigma, taus, rho, Matrix(formatFrom:-s, formatFrom:-r - 1, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1));
+    end proc;
+
+    export BlockPermutation :: static := proc(formatFrom, sigma :: Perm)
+        AdmissibleOperation[ColumnOperation](formatFrom, sigma, [Perm([]) $ formatFrom:-r], Perm([]));
+    end proc;
+
+    export SingleBlockSwap :: static := proc(formatFrom :: PFormat, i1 :: integer, i2 :: integer)
+        AdmissibleOperation[BlockPermutation](formatFrom, Perm([[i1, i2]]));
+    end proc;
+
+    export SingleBlockPermutation :: static := proc(formatFrom, i :: integer, tau :: Perm)
+        AdmissibleOperation[ColumnOperation](formatFrom, Perm([]), [Perm([]) $ i - 1, tau, Perm([]) $ P:-r - i], Perm([]));
+    end proc;
+
+    export LastColumnsPermutation :: static := proc(formatFrom, rho :: Perm)
+        AdmissibleOperation[ColumnOperation](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], rho);
+    end proc;
+
+    export SingleColumnSwap :: static := proc(formatFrom)
+
+    end proc;
+
+    export RowOperation :: static := proc(formatFrom :: PFormat, C :: Matrix, T :: Matrix)
+        AdmissibleOperation[POperation](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], Perm([]), C, T);
+    end proc;
+
+    export AOperation :: static := proc(formatFrom, U :: Matrix, ds :: list(complex))
+        AdmissibleOperation(formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], Perm([]), Matrix(formatFrom:-s, formatFrom:-r - 1, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1), U, ds);
+    end proc;
+
+    export UOperation :: static := proc(formatFrom, U :: Matrix)
+        AdmissibleOperation[AOperation](formatFrom, U, [1 $ formatFrom:-r]);
+    end proc;
+
+    export ScaleOperation :: static := proc(formatFrom, ds :: list(complex))
+        AdmissibleOperation[AOperation](formatFrom, Matrix([[1,0],[0,1]]), ds);
+    end proc;
+
+    export SingleScaleOperation :: static := proc(formatFrom, i :: integer, d :: complex)
+        AdmissibleOperation[ScaleOperation](formatFrom, [1 $ i - 1, d, 1 $ formatFrom:-r - i]);
+    end proc;
+
+    (*
+    Composition of two admissible operations. Following Maple convention (but contrary to common mathematical
+    notation), `a1 . a2` means that `a1` is applied before `a2`.
+    *)
+    export compose :: static := proc(a1 :: AdmissibleOperation, a2 :: AdmissibleOperation)
+        local sigma, taus, rho, C, T, U, ds;
+        if a1:-formatTo <> a2:-formatFrom then
+            error "Can't compose these admissible operations, their formats do not match up.";
+        end if;
+        
+        sigma := Perm:-perm_mul(a1:-sigma, a2:-sigma);
+        taus := [seq(Perm:-perm_mul(a1:-taus[i], a2:-taus[a1:-sigma[i]]) , i = 1 .. a2:-formatFrom:-r)];
+        rho := Perm:-perm_mul(a1:-rho, a2:-rho);
+        C := a2:-C . a1:-B + a2:-T . a1:-C;
+        T := a2:-T . a1:-T;
+        U := a2:-U . a1:-U;
+        ds := zip((d1, d2) -> d1 * d2, a1:-ds, a2:-ds);
+        AdmissibleOperation(a1:-formatFrom, sigma, taus, rho, C, T, U, ds);
+    end proc;
+
+    export inverse :: static := proc(a :: AdmissibleOperation)
+        local sigma, taus, rho, C, T, U, ds;
+
+        sigma := a:-sigma^(-1);
+        taus := map(tau -> tau^(-1), applyPermToList(a:-sigma, a:-taus));
+        rho := a:-rho^(-1);
+        T := a:-T^(-1);
+        C := - :-`.`(:-`.`(a:-T^(-1), a:-C), a:-B^(-1));
+        U := a:-U^(-1);
+        ds := map(d -> 1 / d, a:-ds);
+
+        AdmissibleOperation(a:-formatTo, sigma, taus, rho, C, T, U, ds);
+
+    end proc;
+
+    export ModulePrint :: static := proc(a :: AdmissibleOperation)
+        nprintf(cat("AdmissibleOperation(sigma = ", a:-sigma, ", taus = ", a:-taus, ", rho = ", a:-rho, ", C = ", a:-C, ", T = ", a:-T, ")"));
+    end;
+
+end module;
+
 
 (*****************************************************************************
 **********************             PMATRIX             ***********************
@@ -813,87 +985,11 @@ module PMatrix()
         return localClassGroup;
     end proc;
 
-    (* ************************
-    ** ADMISSIBLE OPERATIONS **
-    ***************************)
-
-    (*
-    Creates a new P-Matrix by applying an admissible column operation. The admissible operation is given in three parts:
-    - `sigma` is a permutation of the blocks, i.e. a permutation of the numbers [1 .. r]
-    - `taus` is a list of permutation for the individual blocks. Note that the permutation of
-      the blocks is applied *before* the taus, i.e. `taus[i]` is a permutation of [1 .. ns[sigma[i]]].
-    - `rho` is a permutation of the last `m` columns, i.e. a permutation of the numbers [1 .. m].
-    *)
-    export applyAdmissibleColumnOperation :: static := proc(P :: PMatrix, sigma :: Perm, taus :: list(Perm), rho :: Perm)
-        local bundledPerm, permutationMatrix, newD, newLss, i, j;
-        # First, bundle the column operation into a single permutation of [1 .. n + m]
-        # This is done at the level of the format.
-        bundledPerm := bundleColumnPermutation(P:-format, sigma, taus, rho);
-        # Create the permutation matrix corresponding to `bundledPerm`
-        permutationMatrix := Matrix(P:-n + P:-m, P:-n + P:-m, (i,j) -> if j = bundledPerm[i] then 1 else 0 end if);
-        # We permute the columns of the `d`-block by multiplying from the right with the permutation matrix.
-        newD := P:-d . permutationMatrix;
-        # Finally, we create the permuted list of the lss, by first applying `sigma` to the blocks
-        # and then applying `tau[i]` to `lss[i]`. This is done simultaneoulsy using `zip`.
-        newLss := zip(applyPermToList, taus, applyPermToList(sigma, P:-lss));
-        return PMatrix(newLss, newD);
-    end proc;
-
-    (*
-    Creates a new P-Matrix by applying an admissible column operation of type (1), i.e. 
-    permutation of blocks. The parameter `sigma` must be a permutation of the numbers [1 .. r]
-    *)
-    export applyAdmissibleColumnOperation1 :: static := proc(P :: PMatrix, sigma :: Perm)
-        applyAdmissibleColumnOperation(P, sigma, [Perm([]) $ P:-r], Perm([]));
-    end proc;
-
-    (*
-    Creates a new P-Matrix by applying an admissible column operation of type (2), i.e.
-    permutation of column within a given block `i`. The parameter `tau` must be a permutation
-    of the numbers [1 .. ns[i]].
-    *)
-    export applyAdmissibleColumnOperation2 :: static := proc(P :: PMatrix, i :: integer, tau :: Perm)
-        applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ (i-1), tau, Perm([]) $ P:-r - i], Perm([]));
-    end proc;
-
-    (*
-    Creates a new P-Matrix by applying an admissible column operation of type (3), i.e.
-    permutation of the last m rows. The parameter `rho` must be a permutation of the
-    numbers [1 .. m].
-    *)
-    export applyAdmissibleColumnOperation3 :: static := proc(P :: PMatrix, rho :: Perm)
-        applyAdmissibleColumnOperation(P, Perm([]), [Perm([]) $ P:-r], rho);
-    end proc;
-
-    (*
-    Creates a new P-Matrix by applying an admissible row operation. The row operation is specified by
-    an (s x (r-1))-Matrix `A` and an (s x s)-Matrix `B`. The row operation is applied by multiplying `P`
-    from the left with an elementary matrix as follows:
-
-    ( E 0 )  *  ( L 0 )  =  (    L      0  )
-    ( A B )     ( d d')     ( AL + Bd   Bd')
-
-    *)
-    export applyAdmissibleRowOperation :: static := proc(P :: PMatrix, C :: Matrix, T :: Matrix)
-        local identityMatrix, zeroMatrix, newP;
-        if not type(C, 'Matrix'(P:-s, P:-r - 1, integer)) then
-            error "Expected second argument to be of type: Matrix(%1, %2, integer)", P:-s, P:-r - 1;
+    export applyAdmissibleOperation :: static := proc(P :: PMatrix, a :: AdmissibleOperation)
+        if P:-format <> a:-formatFrom then
+            error "Format of the P-Matrix does not coincide with format of the admissible operation.";
         end if;
-        if not type(T, 'Matrix'(P:-s, P:-s, integer)) then
-            error "Expected third argument to be of type: Matrix(%1, %1, integer)", P:-s;
-        end if;
-        if not abs(Determinant(T)) = 1 then
-            error "Third argument must be a unimodular matrix, i.e. its determinant must be 1 or -1";
-        end if;
-        # An (r-1) x (r-1) identity matrix.
-        identityMatrix := Matrix(P:-r - 1, P:-r - 1, shape = diagonal, 1);
-        # An (r-1) x s zero matrix.
-        zeroMatrix := Matrix(P:-r - 1, P:-s, fill = 0);
-        # Multiply P from the left with
-        # ( E  0 )
-        # ( A  B )
-        newP := <<identityMatrix | zeroMatrix>, <C | T>> . P:-mat;
-        return PMatrix(P:-s, newP);
+        return PMatrix(a:-formatTo, a:-S . P:-mat . a:-bundledPermutationMatrix^(-1));
     end proc;
 
     (******************
@@ -911,13 +1007,13 @@ module PMatrix()
         # This step is necessary to ensure the columns of the resulting P-Matrix still generate the whole
         # space as a cone.
         if i0 = 1 then
-            A := Matrix(P:-s, P:-r - 1, (k,l) -> if l = 1 then P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+            C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = 1 then P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
         else
-            A := Matrix(P:-s, P:-r - 1, (k,l) -> if l = i0 - 1 then -P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+            C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = i0 - 1 then -P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
         end if;
-        # Just the identity
-        B := Matrix(P:-s, P:-s, shape = diagonal, 1);
-        P := applyAdmissibleRowOperation(P, A, B);
+        T := Matrix(P:-s, P:-s, shape = diagonal, 1);
+        a := AdmissibleOperation[RowOperation](P:-format, C, T);
+        P := applyAdmissibleOperation(P,a);
         # Now construct the new P-Matrix data
         newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {i0})];
         newFormat := PFormat([seq(P:-ns[i], i in {seq(1 .. P:-r)} minus {i0})], P:-m, P:-s);
@@ -943,75 +1039,53 @@ module PMatrix()
     end proc;
 
     (*
-    Applies admissible operations to sort the columns of a P-Matrix by the entries in the L-block.
+    Computes the admissible operation necessary to sort the columns of a P-Matrix by the entries in the L-block.
     The columns of block are sorted descendingly. The blocks themselves are sorted first descendingly
     according to size, and within the same size lexicographically by the lss.
     *)
-    export sortColumnsByLss :: static := proc(P0 :: PMatrix)
-        local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
+    export sortColumnsByLssOperation :: static := proc(P :: PMatrix)
+        local taus, newLss, i, compfun, tau, sigma;
 
-        # First, remove any redundant columns
-        P1 := removeRedundantBlocks(P0);
         # Sort each individual block
-        taus_ := [];
-        for i from 1 to P1:-r do
-            tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> P1:-lss[i][j1] > P1:-lss[i][j2], 'output' = 'permutation'))^(-1);
-            taus_ := [op(taus_), tau];
+        taus := [];
+        for i from 1 to P:-r do
+            tau := Perm(sort([seq(1 .. P:-ns[i])], (j1, j2) -> P:-lss[i][j1] > P:-lss[i][j2], 'output' = 'permutation'))^(-1);
+            taus := [op(taus), tau];
         end do;
-        P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
+        newLss := map(i -> applyPermToList(taus[i], P:-lss[i]), [seq(1 .. P:-r)]);
 
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block of index `i1` should occur before the block of index `i2`.
-        compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
+        compfun := proc(i1 :: integer, i2 :: integer)
             local j;
-            if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
-            elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
+            if nops(newLss[i1]) < nops(newLss[i2]) then return false;
+            elif nops(newLss[i1]) > nops(newLss[i2]) then return true;
             else
-                for j from 1 to nops(P:-lss[i1]) do
-                    if P:-lss[i1][j] < P:-lss[i2][j] then return false;
-                    elif P:-lss[i1][j] > P:-lss[i2][j] then return true;
+                for j from 1 to nops(newLss[i1]) do
+                    if newLss[i1][j] < newLss[i2][j] then return false;
+                    elif newLss[i1][j] > newLss[i2][j] then return true;
                     end if;
                 end do;
                 return true;
             end if;
         end proc;
-        sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
-        P3 := applyAdmissibleColumnOperation1(P2, sigma_);
+        sigma := Perm(sort([seq(1 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
+        
+        return AdmissibleOperation[ColumnOperation](P:-format, sigma, taus, Perm([]));
 
-        # Output handling
-        if _npassed = 1 then
-            return P3;
-        end if;
-        result := [];
-        for i from 2 to _npassed do
-            if type(_passed[i], `=`) then
-                if lhs(_passed[i]) = 'output' then
-                    for str in rhs(_passed[i]) do
-                        if str = 'normalized' then
-                            result := [op(result), P3];
-                        elif str = 'sigma' then
-                            result := [op(result), sigma_];
-                        elif str = 'taus' then
-                            result := [op(result), taus_];
-                        end if;
-                    end do;
-                else
-                    error "Unrecognized option: %1", lhs(_passed[i]);
-                end if;
-            end if;
-        end do;
-        return result;
+    end proc;
+
+    export sortColumnsByLss :: static := proc(P :: PMatrix)
+        applyAdmissibleOperation(P, sortColumnsByLssOperation(P));
     end proc;
 
     (*
-    Sort the columns of a P-Matrix of a K*-surface descendingly by the values of the alphas (adjusted slopes).
+    Computes the admissible operation necessary to sort the columns of a P-Matrix of a 
+    K*-surface descendingly by the values of the alphas (adjusted slopes).
     This is experimental and only works for surfaces at the moment.
     *)
-    export sortColumnsByAdjustedSlopes :: static := proc(P0 :: PMatrix)
-        local P1, P2, P3, sortKey, taus_, i, compfun, tau, sigma_, result, str;
-
-        # First, remove any redundant columns
-        P1 := removeRedundantBlocks(P0);
+    export sortColumnsByAdjustedSlopesOperation :: static := proc(P0 :: PMatrix)
+        local P1, P2, P3, sortKey, taus, i, compfun, tau, sigma, result, str;
 
         # The sortkey to sort the columns by
         sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
@@ -1021,12 +1095,13 @@ module PMatrix()
         end proc;
 
         # Sort each individual block
-        taus_ := [];
+        taus := [];
         for i from 1 to P1:-r do
             tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
-            taus_ := [op(taus_), tau];
+            taus := [op(taus), tau];
         end do;
-        P2 := applyAdmissibleColumnOperation(P1, Perm([]), taus_, Perm([]));
+        a1 := AdmissibleOperation[ColumnOperation](P1:-format, Perm([]), taus, Perm([]));
+        P2 := applyAdmissibleOperation(P1, a1);
 
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block of index `i1` should occur before the block of index `i2`.
@@ -1044,31 +1119,16 @@ module PMatrix()
             end if;
         end proc;
         sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
-        P3 := applyAdmissibleColumnOperation1(P2, sigma_);
+        a2 := AdmissibleOperation[ColumnOperation](P2:-format, sigma, [Perm([]) $ P2:-r], Perm([]));
+        P3 := applyAdmissibleColumnOperation1(P2, a2);
+        a := a1 . a2;
 
-        # Output handling
-        if _npassed = 1 then
-            return P3;
-        end if;
-        result := [];
-        for i from 2 to _npassed do
-            if type(_passed[i], `=`) then
-                if lhs(_passed[i]) = 'output' then
-                    for str in rhs(_passed[i]) do
-                        if str = 'normalized' then
-                            result := [op(result), P3];
-                        elif str = 'sigma' then
-                            result := [op(result), sigma_];
-                        elif str = 'taus' then
-                            result := [op(result), taus_];
-                        end if;
-                    end do;
-                else
-                    error "Unrecognized option: %1", lhs(_passed[i]);
-                end if;
-            end if;
-        end do;
-        return result;
+        return a;
+
+    end proc;
+
+    export sortColumnsByAdjustedSlopes :: static := proc(P :: PMatrix)
+        applyAdmissibleOperation(P, sortColumnsByAdjustedSlopesOperation(P));
     end proc;
 
 
@@ -1082,54 +1142,47 @@ module PMatrix()
     where `out` is a list of the names 'result', 'C', 'T' and 'S'.
     *)
     export areRowEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        local resBool, resC, resT, resS, identityMatrix, zeroMatrix, C_, T_, S_, newP, sol, resultList, str, i, j;
-        resBool, resC, resT, resS := false, undefined, undefined, undefined;
+        local resBool, resOperation, identityMatrix, zeroMatrix, C, T, S, newP, sol, resultList, str, i, j;
+
+        identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
+        zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
+        C := Matrix(P1:-s, P1:-r - 1, symbol = 'c');
+        T := Matrix(P1:-s, P1:-s, symbol = 't');
+        S := <<identityMatrix | zeroMatrix>, <C | T>>;
+        newP := S . P1:-mat;
+        sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
         
-        # P-Matrices of different tower structure (lss) are never row-equivalent.
-        if P1:-lss = P2:-lss then
-            identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
-            zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
-            C_ := Matrix(P1:-s, P1:-r - 1, symbol = 'a');
-            T_ := Matrix(P1:-s, P1:-s, symbol = 'b');
-            S_ := <<identityMatrix | zeroMatrix>, <C_ | T_>>;
-            newP := S_ . P1:-mat;
-            sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
-            if sol = NULL then
-                resBool, resC, resT, resS := false, undefined, undefined, undefined;
-            else
-                if abs(Determinant(subs(sol, T_))) = 1 then
-                    resBool := true;
-                    resC := subs(sol, C_);
-                    resT := subs(sol, T_);
-                    resS := subs(sol, S_);
-                end if;
-            end if;
+        if sol <> NULL and abs(Determinant(subs(sol, T))) = 1 then
+            return AdmissibleOperation[RowOperation](P1:-format, subs(sol, C), subs(sol, T));             
         end if;
-        # Output handling
-        if _npassed = 2 then
-            return resBool;
-        end if;
-        resultList := [];
-        for i from 2 to _npassed do
-            if type(_passed[i], `=`) then
-                if lhs(_passed[i]) = 'output' then
-                    for str in rhs(_passed[i]) do
-                        if str = 'result' then
-                            resultList := [op(resultList), resBool];
-                        elif str = 'C' then
-                            resultList := [op(resultList), resC];
-                        elif str = 'T' then
-                            resultList := [op(resultList), resT];
-                        elif str = 'S' then
-                            resultList := [op(resultList), resS];
-                        end if;
-                    end do;
-                else
-                    error "Unrecognized option: %1", lhs(_passed[i]);
-                end if;
-            end if;
+        
+        return false;
+
+    end proc;
+
+    (*
+    Computes all admissible column operations leaving the L-block of a P-Matrix invariant.
+    This is an important step for checking if two P-Matrices are equivalent by admissible operations.
+    *)
+    export invariantAdmissibleOperations :: static := proc(P0 :: PMatrix)
+    
+        a0 := sortColumnsByLssOperation(P0);
+        P := sortColumnsByLss(P0);
+
+        admOps := map(sigma -> AdmissibleOperation[ColumnOperation](P:-format, sigma, [Perm([]) $ P:-r], Perm([])), invariantPermutations(P:-lss));
+
+        for i from 1 to P:-r do
+            taus := map(tau -> AdmissibleOperation[ColumnOperation](P:-format, Perm([]), [Perm([]) $ i - 1, tau, Perm([]) $ P:-r - i], Perm([])), invariantPermutations(P:-lss[i]));
+            admOps := map(a -> op(map(tau -> compose(a, tau), taus)), admOps);
         end do;
-        return resultList;
+
+        rhos := map(rho -> AdmissibleOperation[ColumnOperation](P:-format, Perm([]), [Perm([]) $ P:-r], Perm(rho)), combinat[permute](P:-m));
+        admOps := map(a -> op(map(rho -> compose(a, rho), rhos)), admOps);
+        
+        admOps := map(a -> compose(compose(a0, a), inverse(a0)), admOps);
+
+        return admOps;
+
     end proc;
 
     (*
@@ -1172,7 +1225,7 @@ module PMatrix()
             sol := isolve({seq(seq(newP1[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = 1 .. RowDimension(P1:-mat))});
             return evalb(sol <> NULL);
         *)
-        if P1:-s = 1 then
+        if P1:-s = 100 then
             # SURFACE CASE
             # We sort the columns by adjusted slopes
             if not 'skipSorting' in [_passed] then
@@ -1187,37 +1240,31 @@ module PMatrix()
             return areRowEquivalent(P11, P2) or areRowEquivalent(P12, P2);
         else
             # GENERAL CASE
-            # First, sort the columns by the lss.
-            if 'skipSorting' in [_passed] then
-                P1 := P1_;
-                P2 := P2_;
-            else 
-                P1 := sortColumnsByLss(P1_);
-                P2 := sortColumnsByLss(P2_);
-            end if;
-            # After sorting, the lss must be equal, otherwise `P1` and `P2` can't be equivalent.
-            if P1:-lss <> P2:-lss then
+            
+            # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
+            # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
+            a0 := compose(sortColumnsByLssOperation(P1), inverse(sortColumnsByLssOperation(P2)));
+            
+            # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
+            # the P-Matrices can't be equivalent.
+            if applyAdmissibleOperation(P1, a0):-lss <> P2:-lss then
                 return false;
             end if;
-            # Starting from `P1`, we consider all P-Matrices that we can reach via admissible column operations
-            # leaving the L-block invariant. We do this in three steps corresponding to the three kinds of admissible column operations.
-            # First, we consider all column operations permuting two entire blocks.
-            Ps := map(sigma -> applyAdmissibleColumnOperation1(P1, sigma), invariantPermutations(P1:-lss));
-            # Second, we consider for each of those P-matrices all further P-matrices we can reach by admissible
-            # column permutations within a single block, such that the entire L-block is kept invariant.
-            for i from 1 to P1:-r do
-                Ps := ListTools[Flatten](map(P -> map(tau -> applyAdmissibleColumnOperation2(P, i, tau), invariantPermutations(P:-lss[i])), Ps));
-            end do;
-            # Thirdly, for each of those P-matrices, we consider all further P-matrices we reach by admissible
-            # column permutations within the last m columns.
-            Ps := ListTools[Flatten](map(P -> map(rho -> applyAdmissibleColumnOperation3(P, rho), map(Perm, combinat[permute](P:-m))), Ps));
-            # Now, for each of those P-matrices, we check if we can transform them into `P2` by admissible row operations.
-            for P in Ps do
-                if areRowEquivalent(P, P2) then
-                    return true;
+
+            # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
+            # sending the L-block of P1 to the L-block of P2.
+            admOps := map(a -> compose(a, a0), invariantAdmissibleOperations(P1));
+
+            # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
+            resultOps := [];
+            for a in admOps do
+                rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2);
+                if type(rowOp, AdmissibleOperation) then
+                    resultOps := [op(resultOps), compose(a, rowOp)];
                 end if;
             end do;
-            return false;
+
+            return resultOp;
         end if;
     end proc;
 
@@ -1743,64 +1790,24 @@ module TVarOne()
         end if;
     end proc;
 
-    (*
-    Creates a new T-Variety of Complexity One by applying an admissible column operation. 
-    See also `PMatrix[applyAdmissibleColumnOperation]`.
-    *)
-    export applyAdmissibleColumnOperation := proc(X :: TVarOne, sigma :: Perm, taus :: list(Perm), rho :: Perm)
-        local newP, bundledPerm, newSigma;
-        newP := PMatrix[applyAdmissibleColumnOperation](X:-P, sigma, taus, rho);
-        bundledPerm := bundleColumnPermutation(X:-P:-format, sigma, taus, rho);
-        newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
-        return TVarOne(newP, newSigma);
+    export applyAdmissibleOperation := proc(X :: TVarOne, a :: AdmissibleOperation)
+        newP := PMatrix[applyAdmissibleOperation](X:-P, a);
+        newSigma := map(cones -> map(k -> a:-bundledPerm[k], cones), X:-Sigma);
+        newA := a:-U . X:-A . a:-D . a:-sigmaPermutationMatrix^(-1);
+        TVarOne(newP, newSigma, newA);
     end proc;
 
-    (*
-    Creates a new T-Variety of Complexity One by applying an admissible column operation of type (1), i.e. 
-    permutation of blocks. See also `PMatrix[applyAdmissibleColumnOperation1]`.
-    *)
-    export applyAdmissibleColumnOperation1 := proc(X :: TVarOne, sigma :: Perm)
-        applyAdmissibleColumnOperation(X, sigma, [Perm([]) $ P:-r], Perm([]));
+    export sortColumnsByLss := proc(X :: TVarOne)
+       applyAdmissibleOperation(X, PMatrix[sortColumnsByLssOperation](X:-P));
     end proc;
 
-    (*
-    Creates a new T-Variety of Complexity One by applying an admissible column operation of type (2), i.e.
-    permutation of column within a given block `i`.See also `PMatrix[applyAdmissibleColumnOperation2]`.
-    *)
-    export applyAdmissibleColumnOperation2 := proc(X :: TVarOne, i :: integer, tau :: Perm)
-        applyAdmissibleColumnOperation(X, Perm([]), [Perm([]) $ (i-1), tau, Perm([]) $ P:-r - i], Perm([]));
+    export sortColumnsByAdjustedSlopes := proc(X :: TVarOne)
+        applyAdmissibleOperation(X, PMatrix[sortColumnsByAdjustedSlopesOperation](X:-P));
     end proc;
 
-    (*
-    Creates a new T-Variety of Complexity One by applying an admissible column operation of type (3), i.e.
-    permutation of the last m rows. See also `PMatrix[applyAdmissibleColumnOperation3]`.
-    *)
-    export applyAdmissibleColumnOperation3 := proc(X :: TVarOne, rho :: Perm)
-        applyAdmissibleColumnOperation(X, Perm([]), [Perm([]) $ P:-r], rho);
-    end proc;
-
-    (*
-    Creates a new T-Variety of Complexity One by applying an admissible row operation. 
-    See also `PMatrix[applyAdmissibleRowOperation]`.
-    *)
-    export applyAdmissibleRowOperation := proc(X :: TVarOne, C :: Matrix, T :: Matrix)
-        return TVarOne(PMatrix[applyAdmissibleRowOperation](X:-P, C, T), X:-Sigma);
-    end proc;
-
-    (*
-    See also `sortColumnsByLss` for PMatrix.
-    *)
-    export sortColumnsByLss := proc(X0 :: TVarOne)
-        local X, newP, sigma_, taus_, bundledPerm, newSigma, newX;
-        # First remove redundant columns. Note that this also changes the fan.
-        X := removeRedundantBlocks(X0);
-        # Now, sort the columns using the method from `PMatrix`.
-        newP, sigma_, taus_ := op(PMatrix[sortColumnsByLss](X:-P, output = ['normalized', 'sigma', 'taus']));
-        # Adjust the fan accordingly, by applying the permutation given from the sorting.
-        bundledPerm := bundleColumnPermutation(X:-P:-format, sigma_, taus_, Perm([]));
-        newSigma := map(cones -> map(k -> bundledPerm[k], cones), X:-Sigma);
-        newX := TVarOne(newP, newSigma);
-        return newX;
+    export areEquivalent := proc(X1 :: TVarOne, X2 :: TVarOne)
+        a := areEquivalent(X1:-P, X2:-P);
+        
     end proc;
 
     (*
