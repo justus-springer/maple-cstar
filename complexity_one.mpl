@@ -1206,12 +1206,12 @@ module PMatrix()
 
         # After removing redundant blocks, the number of blocks must coincide.
         if P1:-r <> P2:-r then
-            return false;
+            return [];
         end if;
 
         # Varieties of different dimension can't be isomorphic.
         if P1:-s <> P2:-s then
-            return false;
+            return [];
         end if; 
         
         # DISABLED FOR NOW
@@ -1248,7 +1248,7 @@ module PMatrix()
             # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
             # the P-Matrices can't be equivalent.
             if applyAdmissibleOperation(P1, a0):-lss <> P2:-lss then
-                return false;
+                return [];
             end if;
 
             # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
@@ -1833,7 +1833,10 @@ module TVarOne()
         return false;
     end proc;
 
-    export areIsomorphicOperation :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areIsomorphicOperation :: static := proc(X1_ :: TVarOne, X2_ :: TVarOne)
+
+        X1 := removeRedundantBlocks(X1_);
+        X2 := removeRedundantBlocks(X2_);
 
         for a in PMatrix[areEquivalentOperations](X1:-P, X2:-P) do
             newX1 := applyAdmissibleOperation(X1, a);
