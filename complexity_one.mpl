@@ -230,7 +230,7 @@ module AdmissibleOperation()
     export ModuleCopy :: static := proc(self :: AdmissibleOperation, proto :: AdmissibleOperation,
         formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, C :: Matrix, T :: Matrix, U :: Matrix, ds :: list(complex), $)
 
-        local bundledPermApply, zeroMatrix;
+        local bundledPermApply, zeroMatrix, i;
 
         # Copy given data
         self:-formatFrom := formatFrom;
@@ -369,7 +369,7 @@ module AdmissibleOperation()
     notation), `a1 . a2` means that `a1` is applied before `a2`.
     *)
     export compose :: static := proc(a1 :: AdmissibleOperation, a2 :: AdmissibleOperation)
-        local sigma, taus, rho, C, T, U, ds;
+        local sigma, taus, rho, C, T, U, ds, i;
         if a1:-formatTo <> a2:-formatFrom then
             error "Can't compose these admissible operations, their formats do not match up.";
         end if;
@@ -1000,7 +1000,7 @@ module PMatrix()
     Removes a single redundant column from a P-Matrix.
     *)
     export removeSingleRedundantBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
-        local P, A, B, newLss, newD, newFormat, i;
+        local P, C, T, a, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
         # the redundant columns. We construct the A-Matrix necessary for this.
@@ -1085,7 +1085,7 @@ module PMatrix()
     This is experimental and only works for surfaces at the moment.
     *)
     export sortColumnsByAdjustedSlopesOperation :: static := proc(P0 :: PMatrix)
-        local P1, P2, P3, sortKey, taus, i, compfun, tau, sigma, result, str;
+        local P1, P2, P3, a1, a2, a, sortKey, taus, i, compfun, tau, sigma, result, str;
 
         # The sortkey to sort the columns by
         sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
@@ -1118,7 +1118,7 @@ module PMatrix()
                 return true;
             end if;
         end proc;
-        sigma_ := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
+        sigma := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
         a2 := AdmissibleOperation[ColumnOperation](P2:-format, sigma, [Perm([]) $ P2:-r], Perm([]));
         P3 := applyAdmissibleColumnOperation1(P2, a2);
         a := a1 . a2;
@@ -1166,6 +1166,8 @@ module PMatrix()
     *)
     export invariantAdmissibleOperations :: static := proc(P0 :: PMatrix)
     
+        local a0, P, admOps, i, taus, rhos;
+
         a0 := sortColumnsByLssOperation(P0);
         P := sortColumnsByLss(P0);
 
@@ -1198,7 +1200,7 @@ module PMatrix()
 
     *)
     export areEquivalentOperations :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
-        local Ps, P, i, P1, P2, P11, P12, newP1, sol, j;
+        local Ps, P, i, P1, P2, P11, P12, a0, admOps, resultOps, a, rowOp;
 
         # First, remove any redundant blocks.
         P1 := removeRedundantBlocks(P1_);
@@ -1793,6 +1795,7 @@ module TVarOne()
     end proc;
 
     export applyAdmissibleOperation :: static := proc(X :: TVarOne, a :: AdmissibleOperation)
+        local newP, newSigma, newA;
         newP := PMatrix[applyAdmissibleOperation](X:-P, a);
         newSigma := map(cones -> map(k -> a:-bundledPerm[k], cones), X:-Sigma);
         if type(X:-A, undefined) then
@@ -1813,6 +1816,7 @@ module TVarOne()
     end proc;
 
     export standardizeCoefficientMatrixOperation :: static := proc(X :: TVarOne)
+        local U1, newA, ds, U2, i;
         U1 := Matrix([Column(X:-A,[1,2])])^(-1);
         newA := U1 . X:-A;
         ds := [1, newA[2,3] / newA[1,3], seq(-1 / newA[1,i], i = 3 .. X:-P:-r)];
@@ -1824,17 +1828,22 @@ module TVarOne()
         applyAdmissibleOperation(X, standardizeCoefficientMatrixOperation(X));
     end proc;
     
-    export areCoefficientMatricesEquivalent :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areCoefficientMatricesEquivalentOperation :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+        local a1, a2;
         a1 := standardizeCoefficientMatrixOperation(X1);
         a2 := standardizeCoefficientMatrixOperation(X2);
         if Equal(applyAdmissibleOperation(X1, a1):-A, applyAdmissibleOperation(X2, a2):-A) then
             return compose(a1, inverse(a2));
         end if;
-        return false;
+        return NULL;
+    end proc;
+
+    export areCoefficientMatricesEquivalent :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+        type(areCoefficientMatricesEquivalentOperation(X1, X2), AdmissibleOperation);
     end proc;
 
     export areIsomorphicOperation :: static := proc(X1_ :: TVarOne, X2_ :: TVarOne)
-
+        local X1, X2, a, newX1, coefficientOp;
         X1 := removeRedundantBlocks(X1_);
         X2 := removeRedundantBlocks(X2_);
 
@@ -1847,7 +1856,7 @@ module TVarOne()
                 end if;
                 # Else we check if the coefficient matrices can be turned into each other by an
                 # admissible operation on the coefficient matrix.
-                coefficientOp := areCoefficientMatricesEquivalent(newX1, X2);
+                coefficientOp := areCoefficientMatricesEquivalentOperation(newX1, X2);
                 if type(coefficientOp, AdmissibleOperation) then
                     return compose(a, coefficientOp);
                 end if;
@@ -1891,7 +1900,7 @@ module TVarOne()
     end proc;
 
     export canonicalResolution :: static := proc(X0 :: TVarOne)
-        local X, P, myFan, newFan, Pcols, allRays, newRayBlocks, newPColumns, newP, newSigma, newX, i;
+        local X, P, myFan, newFan, Pcols, allRays, newRayBlocks, newPColumns, newP, newSigma, newX, i, exceptDivIndices;
 
         X := tropicalResolution(X0);
         P := X:-P;
@@ -2047,7 +2056,7 @@ It returns the list of rowids in the database where the P-Matrix is equivalent t
 If the P-Matrix does not occur, it returns the empty list.
 *)
 FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
-    local P, stmtString, stmt, Ps, M, rowids, i, resids;
+    local P, stmtString, stmt, Xs, M, rowids, i, resids;
     P := X:-P;
     stmtString := cat("SELECT rowid,* FROM ", tableName, " WHERE ",
         "m = ", P:-m, " AND ",
