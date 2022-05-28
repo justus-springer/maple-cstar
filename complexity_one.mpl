@@ -1146,8 +1146,8 @@ module PMatrix()
 
         identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
         zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
-        C := Matrix(P1:-s, P1:-r - 1, symbol = 'c');
-        T := Matrix(P1:-s, P1:-s, symbol = 't');
+        C := Matrix(P1:-s, P1:-r - 1, symbol = 'x');
+        T := Matrix(P1:-s, P1:-s, symbol = 'y');
         S := <<identityMatrix | zeroMatrix>, <C | T>>;
         newP := S . P1:-mat;
         sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
@@ -1197,7 +1197,7 @@ module PMatrix()
     theoretical work first.
 
     *)
-    export areEquivalent :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
+    export areEquivalentOperations :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
         local Ps, P, i, P1, P2, P11, P12, newP1, sol, j;
 
         # First, remove any redundant blocks.
@@ -1268,6 +1268,10 @@ module PMatrix()
         end if;
     end proc;
 
+    export areEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
+        evalb(areEquivalentOperations(P1,P2) <> []);
+    end proc;
+
     (*
     Converts a cone given as a list of column indices into a CONE from the convex package.
     *)
@@ -1327,7 +1331,9 @@ module TVarOne()
     export A := undefined;
 
     # Variables and relations in the Cox Ring
-    export variables, monomials, relations;
+    export variable := undefined;
+    export monomials := undefined;
+    export relations := undefined;
 
     # These fields are only computed when needed. Use the getters below for them.
     local maximalXCones := undefined;
@@ -1347,15 +1353,15 @@ module TVarOne()
         Object(TVarOne, _passed);
     end;
 
-    local setRelations :: static := proc(self :: TVarOne, P :: PMatrix, A :: Matrix)
-        local f, lss, i, j, alpha;
+    export setCoefficientMatrix :: static := proc(X :: TVarOne, A :: Matrix)
+        local P, f, lss, i, j, alpha;
+        P := X:-P;
         f := P:-format;
         lss := P:-lss;
         self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
         self:-monomials := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
 
         alpha := (i,j) -> Determinant(Matrix([Column(A, [i,j])]));
-        # TODO: Add support for an optional parameter A during creation of the P-Matrix to modify the coefficients in the relations.
         self:-relations := [seq(alpha(i+1,i+2) * self:-monomials[i] + alpha(i+2, i) * self:-monomials[i+1] + alpha(i, i+1) * self:-monomials[i+2], i = 1 .. f:-r - 2)];
     end proc;
 
@@ -1383,8 +1389,8 @@ module TVarOne()
         having P as its PMatrix. Note however, that there are other possible non-Fano varieties with P as PMatrix.
 
     The parameter `A` is the coefficient matrix for the trinomial euqations defining the variety.
-    It is an optional parameter. If it is not proved, the standard coefficient matrix is used, hence we
-    have one's everywhere in the defining trinomials.
+    It is an optional parameter. If it is not provided, it will be left undefined. It can always be
+    provided later with the `setCoefficientMatrix` procedure.
 
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
@@ -1441,13 +1447,9 @@ module TVarOne()
             end if;
         end if;
 
-        # If no coefficient matrix has been provided, use the standard one.
-        if type(self:-A, undefined) then
-            self:-A := Matrix(2, P:-r, [[1, 0, -1 $ P:-r - 2], [0, 1, seq(-i, i = 1 .. P:-r - 2)]]);
+        if not type(self:-A, undefined) then
+            setCoefficientMatrix(self, P, self:-A);
         end if;
-
-        # Construct the trinomial relations in the Cox Ring
-        setRelations(self, P, self:-A);
 
         # If no Sigma has been provided, check if we are in one of the allowed cases (1)-(3)
         # and compute it.
@@ -1790,22 +1792,27 @@ module TVarOne()
         end if;
     end proc;
 
-    export applyAdmissibleOperation := proc(X :: TVarOne, a :: AdmissibleOperation)
+    export applyAdmissibleOperation :: static := proc(X :: TVarOne, a :: AdmissibleOperation)
         newP := PMatrix[applyAdmissibleOperation](X:-P, a);
         newSigma := map(cones -> map(k -> a:-bundledPerm[k], cones), X:-Sigma);
-        newA := a:-U . X:-A . a:-D . a:-sigmaPermutationMatrix^(-1);
-        TVarOne(newP, newSigma, newA);
+        if type(X:-A, undefined) then
+            TVarOne(newP, newSigma);
+        else
+            newA := a:-U . X:-A . a:-D . a:-sigmaPermutationMatrix^(-1);
+            TVarOne(newP, newSigma, newA);
+        end if;
+
     end proc;
 
-    export sortColumnsByLss := proc(X :: TVarOne)
+    export sortColumnsByLss :: static := proc(X :: TVarOne)
        applyAdmissibleOperation(X, PMatrix[sortColumnsByLssOperation](X:-P));
     end proc;
 
-    export sortColumnsByAdjustedSlopes := proc(X :: TVarOne)
+    export sortColumnsByAdjustedSlopes :: static := proc(X :: TVarOne)
         applyAdmissibleOperation(X, PMatrix[sortColumnsByAdjustedSlopesOperation](X:-P));
     end proc;
 
-    export standardizeCoefficientMatrixOperation := proc(X :: TVarOne)
+    export standardizeCoefficientMatrixOperation :: static := proc(X :: TVarOne)
         U1 := Matrix([Column(X:-A,[1,2])])^(-1);
         newA := U1 . X:-A;
         ds := [1, newA[2,3] / newA[1,3], seq(-1 / newA[1,i], i = 3 .. X:-P:-r)];
@@ -1813,11 +1820,11 @@ module TVarOne()
         AdmissibleOperation[AOperation](X:-P:-format, U2 . U1, ds);
     end proc;
 
-    export standardizeCoefficientMatrix := proc(X :: TVarOne)
+    export standardizeCoefficientMatrix :: static := proc(X :: TVarOne)
         applyAdmissibleOperation(X, standardizeCoefficientMatrixOperation(X));
     end proc;
     
-    export areCoefficientMatricesEquivalent := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areCoefficientMatricesEquivalent :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
         a1 := standardizeCoefficientMatrixOperation(X1);
         a2 := standardizeCoefficientMatrixOperation(X2);
         if Equal(applyAdmissibleOperation(X1, a1):-A, applyAdmissibleOperation(X2, a2):-A) then
@@ -1826,11 +1833,17 @@ module TVarOne()
         return false;
     end proc;
 
-    export areIsomorphic := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areIsomorphicOperation :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
 
-        for a in PMatrix[areEquivalent](X1:-P, X2:-P) do
+        for a in PMatrix[areEquivalentOperations](X1:-P, X2:-P) do
             newX1 := applyAdmissibleOperation(X1, a);
             if getMaximalXCones(newX1) = getMaximalXCones(X2) then
+                # If there are no coefficient matrices, we are done.
+                if type(X1:-A, undefined) or type(X2:-A, undefined) then
+                    return a;
+                end if;
+                # Else we check if the coefficient matrices can be turned into each other by an
+                # admissible operation on the coefficient matrix.
                 coefficientOp := areCoefficientMatricesEquivalent(newX1, X2);
                 if type(coefficientOp, AdmissibleOperation) then
                     return compose(a, coefficientOp);
@@ -1838,7 +1851,11 @@ module TVarOne()
             end if;
         end do;
 
-        return false;
+        return NULL;
+    end proc;
+
+    export areIsomorphic :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+        type(areIsomorphicOperation(X1,X2), AdmissibleOperation);
     end proc;
 
     (*
@@ -2029,7 +2046,7 @@ If the P-Matrix does not occur, it returns the empty list.
 FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
     local P, stmtString, stmt, Ps, M, rowids, i, resids;
     P := X:-P;
-    stmtString := cat("SELECT rowid,s,P FROM ", tableName, " WHERE ",
+    stmtString := cat("SELECT rowid,* FROM ", tableName, " WHERE ",
         "m = ", P:-m, " AND ",
         "s = ", P:-s, " AND ",
         "classGroup = \"", getClassGroup(X:-P), "\" AND ",
@@ -2040,12 +2057,12 @@ FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
     end if;
     
     stmt := Prepare(connection, stmtString);
-    Ps := ImportTVarOneList(stmt);
+    Xs := ImportTVarOneList(stmt);
     M := FetchAll(stmt):
     rowids := [seq(M[i,1], i = 1 .. RowDimension(M))];
     resids := [];
     for i from 1 to nops(rowids) do
-        if areEquivalent(P, Ps[i]) then
+        if areIsomorphic(X, Xs[i]) then
             resids := [op(resids), rowids[i]];
         end if;
     end do;
