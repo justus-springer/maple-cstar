@@ -1805,9 +1805,20 @@ module TVarOne()
         applyAdmissibleOperation(X, PMatrix[sortColumnsByAdjustedSlopesOperation](X:-P));
     end proc;
 
+    export standardizeCoefficientMatrixOperation := proc(X :: TVarOne)
+        U1 := Matrix([Column(X:-A,[1,2])])^(-1);
+        newA := U1 . X:-A;
+        ds := [1, newA[2,3] / newA[1,3], seq(-1 / newA[1,i], i = 3 .. X:-P:-r)];
+        U2 := <1,0;0,newA[1,3]/newA[2,3]>;
+        AdmissibleOperation[AOperation](X:-P:-format, U2 . U1, ds);
+    end proc;
+
+    export standardizeCoefficientMatrix := proc(X :: TVarOne)
+        applyAdmissibleOperation(X, standardizeCoefficientMatrixOperation(X));
+    end proc;
+
     export areEquivalent := proc(X1 :: TVarOne, X2 :: TVarOne)
-        a := areEquivalent(X1:-P, X2:-P);
-        
+        # TODO
     end proc;
 
     (*
