@@ -1264,7 +1264,7 @@ module PMatrix()
                 end if;
             end do;
 
-            return resultOp;
+            return resultOps;
         end if;
     end proc;
 
@@ -1816,9 +1816,29 @@ module TVarOne()
     export standardizeCoefficientMatrix := proc(X :: TVarOne)
         applyAdmissibleOperation(X, standardizeCoefficientMatrixOperation(X));
     end proc;
+    
+    export areCoefficientMatricesEquivalent := proc(X1 :: TVarOne, X2 :: TVarOne)
+        a1 := standardizeCoefficientMatrixOperation(X1);
+        a2 := standardizeCoefficientMatrixOperation(X2);
+        if Equal(applyAdmissibleOperation(X1, a1):-A, applyAdmissibleOperation(X2, a2):-A) then
+            return compose(a1, inverse(a2));
+        end if;
+        return false;
+    end proc;
 
-    export areEquivalent := proc(X1 :: TVarOne, X2 :: TVarOne)
-        # TODO
+    export areIsomorphic := proc(X1 :: TVarOne, X2 :: TVarOne)
+
+        for a in PMatrix[areEquivalent](X1:-P, X2:-P) do
+            newX1 := applyAdmissibleOperation(X1, a);
+            if getMaximalXCones(newX1) = getMaximalXCones(X2) then
+                coefficientOp := areCoefficientMatricesEquivalent(newX1, X2);
+                if type(coefficientOp, AdmissibleOperation) then
+                    return compose(a, coefficientOp);
+                end if;
+            end if;
+        end do;
+
+        return false;
     end proc;
 
     (*
