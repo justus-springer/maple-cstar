@@ -1333,7 +1333,7 @@ module TVarOne()
     export A := undefined;
 
     # Variables and relations in the Cox Ring
-    export variable := undefined;
+    export variables := undefined;
     export monomials := undefined;
     export relations := undefined;
 
@@ -1355,9 +1355,9 @@ module TVarOne()
         Object(TVarOne, _passed);
     end;
 
-    export setCoefficientMatrix :: static := proc(X :: TVarOne, A :: Matrix)
+    export setCoefficientMatrix :: static := proc(self :: TVarOne, A :: Matrix)
         local P, f, lss, i, j, alpha;
-        P := X:-P;
+        P := self:-P;
         f := P:-format;
         lss := P:-lss;
         self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
@@ -1396,7 +1396,7 @@ module TVarOne()
 
     *)
     export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
-        local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone;
+        local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A;
 
         self:-P := P;
 
@@ -1404,10 +1404,18 @@ module TVarOne()
         if _npassed > 3 then
             if type(_passed[4], Matrix) then
                 # No Sigma provided, coefficient Matrix is fourth argument.
-                if RowDimension(_passed[4]) <> 2 or ColumnDimension(_passed[4]) <> P:-r then
+                A := _passed[4];
+                if RowDimension(A) <> 2 or ColumnDimension(A) <> P:-r then
                     error "The coefficient matrix must be a (2 x r)-Matrix. Here, r = %1", P:-r;
                 end if;
-                self:-A := _passed[4];
+                for i from 1 to P:-r do
+                    for j from i+1 to P:-r do
+                        if Determinant(Matrix([Column(A, [i,j])])) = 0 then
+                            error "The columns of the coefficient matrix must be linearly independent. Here the %1-th and the %2-th columns are linearly dependent.", i, j;
+                        end if;
+                    end do;
+                end do;
+                self:-A := A;
             elif type(_passed[4], set(set(integer))) then
                 # Fan Sigma provided
                 self:-Sigma := _passed[4];
@@ -1439,10 +1447,18 @@ module TVarOne()
 
             if _npassed > 4 then
                 if type(_passed[5], Matrix) then
-                    if RowDimension(_passed[5]) <> 2 or ColumnDimension(_passed[5]) <> P:-r then
+                    A := _passed[5];
+                    if RowDimension(A) <> 2 or ColumnDimension(A) <> P:-r then
                         error "The coefficient matrix must be a (2 x r)-Matrix. Here, r = %1", P:-r;
                     end if;
-                    self:-A := _passed[5];
+                    for i from 1 to P:-r do
+                        for j from i+1 to P:-r do
+                            if Determinant(Matrix([Column(A, [i,j])])) = 0 then
+                                error "The columns of the coefficient matrix must be linearly independent. Here the %1-th and the %2-th columns are linearly dependent.", i, j;
+                            end if;
+                        end do;
+                    end do;
+                    self:-A := A;
                 else
                     error "Expected third argument to be of type Matrix";
                 end if;
@@ -1450,7 +1466,7 @@ module TVarOne()
         end if;
 
         if not type(self:-A, undefined) then
-            setCoefficientMatrix(self, P, self:-A);
+            setCoefficientMatrix(self, self:-A);
         end if;
 
         # If no Sigma has been provided, check if we are in one of the allowed cases (1)-(3)
