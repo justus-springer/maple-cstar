@@ -18,22 +18,52 @@ end proc;
 
 (* Computes all permutations leaving a given list invariant. *)
 export invariantPermutations := proc(ls :: list, compFun := `=`)
-        local indexGroups, a, b, permsList, grp, perms, p, i;
-        indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
-        permsList := [];
-        for grp in indexGroups do
-            perms := [];
-            for a in map(combinat[permute], nops(grp)) do
-                p := [seq(1 .. max(grp))];
-                for i from 1 to nops(grp) do
-                    p[grp[i]] := grp[a[i]];
-                end do;
-                perms := [op(perms), Perm(p)];
+    local indexGroups, a, b, permsList, grp, perms, p, i;
+    indexGroups := [ListTools[Categorize]((i,j) -> compFun(ls[i], ls[j]), [seq(1 .. nops(ls))])];
+    permsList := [];
+    for grp in indexGroups do
+        perms := [];
+        for a in map(combinat[permute], nops(grp)) do
+            p := [seq(1 .. max(grp))];
+            for i from 1 to nops(grp) do
+                p[grp[i]] := grp[a[i]];
             end do;
-            permsList := [op(permsList), perms];
-        end do; 
-        return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permsList));
-    end proc;
+            perms := [op(perms), Perm(p)];
+        end do;
+        permsList := [op(permsList), perms];
+    end do; 
+    return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permsList));
+end proc;
+
+local sortLexComparison := proc(a :: {numeric, list}, b :: {numeric, list})
+    local i;
+    if type(a, numeric) and type(b, numeric) then
+        return a > b;
+    elif type(a, list) and type(b, list) then
+        if nops(a) > nops(b) then
+            return true;
+        elif nops(a) < nops(b) then
+            return false;
+        end if;
+        for i from 1 to nops(a) do
+            if sortLexComparison(a[i], b[i]) and not sortLexComparison(b[i], a[i]) then
+                return true
+            elif sortLexComparison(b[i], a[i]) and not sortLexComparison(a[i], b[i]) then 
+                return false;
+            end if;
+        end do;
+        return false;
+    end if;
+    error "Both arguments must either be numbers or lists";
+end proc;
+
+export sortLex := proc(ls :: list)
+    if type(ls, list(numeric)) then
+        sort(ls, `>`);
+    else
+        sort(map(sortLex, ls), sortLexComparison);
+    end if;
+end proc;
 
 (*****************************************************************************
 **********************             PFORMAT             ***********************
@@ -365,8 +395,7 @@ module AdmissibleOperation()
     end proc;
 
     (*
-    Composition of two admissible operations. Following Maple convention (but contrary to common mathematical
-    notation), `a1 . a2` means that `a1` is applied before `a2`.
+    Composition of two admissible operations. Here, `a1` is applied before `a2`.
     *)
     export compose :: static := proc(a1 :: AdmissibleOperation, a2 :: AdmissibleOperation)
         local sigma, taus, rho, C, T, U, ds, i;
@@ -391,7 +420,7 @@ module AdmissibleOperation()
         taus := map(tau -> tau^(-1), applyPermToList(a:-sigma, a:-taus));
         rho := a:-rho^(-1);
         T := a:-T^(-1);
-        C := - :-`.`(:-`.`(a:-T^(-1), a:-C), a:-B^(-1));
+        C := - a:-T^(-1) . a:-C . a:-B^(-1);
         U := a:-U^(-1);
         ds := map(d -> 1 / d, a:-ds);
 
@@ -481,8 +510,15 @@ module PMatrix()
     export slopes := undefined;
 
     # The sum of the biggest resp. smallest slopes in each block.
+    export maximumSlopes := undefined;
+    export minimumSlopes := undefined;
     export mplus := undefined;
     export mminus := undefined;
+
+    export betasPlus := undefined;
+    export betasMinus := undefined;
+
+    export magicInvariant := undefined;
 
     local setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
@@ -498,8 +534,13 @@ module PMatrix()
     local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
         local i, j;
         self:-slopes := [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
-        self:-mplus := add([seq(max(self:-slopes[i]), i = 1 .. self:-r)]);
-        self:-mminus := add([seq(min(self:-slopes[i]), i = 1 .. self:-r)]);
+        self:-maximumSlopes := map(max, self:-slopes);
+        self:-minimumSlopes := map(min, self:-slopes);
+        self:-mplus := add(self:-maximumSlopes);
+        self:-mminus := add(self:-minimumSlopes);
+        self:-betasPlus := [seq([seq(self:-slopes[i,j] - ceil(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-betasMinus := [seq([seq(self:-slopes[i,j] - floor(self:-minimumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-magicInvariant := [sortLex([self:-mplus, -self:-mminus]), sortLex([self:-betasPlus, -self:-betasMinus])];
         if self:-m = 0 then
             self:-case := "EE";
         elif self:-m = 1 then
@@ -592,6 +633,11 @@ module PMatrix()
                 self:-mat := P:-mat;
                 self:-P0 := P:-P0;
                 self:-d := P:-d;
+
+                # If this is a P-Matrix of a surface, set the slopes
+                if self:-s = 1 then 
+                    setSurfaceData(self, self:-d, self:-lss);
+                end if;
             else
                 # Input method (1)
                 # PFormat, list(list(integer)), Matrix.
@@ -1079,59 +1125,6 @@ module PMatrix()
         applyAdmissibleOperation(P, sortColumnsByLssOperation(P));
     end proc;
 
-    (*
-    Computes the admissible operation necessary to sort the columns of a P-Matrix of a 
-    K*-surface descendingly by the values of the alphas (adjusted slopes).
-    This is experimental and only works for surfaces at the moment.
-    *)
-    export sortColumnsByAdjustedSlopesOperation :: static := proc(P0 :: PMatrix)
-        local P1, P2, P3, a1, a2, a, sortKey, taus, i, compfun, tau, sigma, result, str;
-
-        # The sortkey to sort the columns by
-        sortKey := proc(P :: PMatrix, i :: integer, j :: integer)
-            local i_;
-            P:-d[1,doubleToSingleIndex(P:-format, i, j)] / P:-lss[i][j]
-                + add([seq(floor(P:-d[1,doubleToSingleIndex(P:-format, i_, 1)] / P:-lss[i_][1]), i_ in ({seq(1..P:-r)} minus {i}))]);
-        end proc;
-
-        # Sort each individual block
-        taus := [];
-        for i from 1 to P1:-r do
-            tau := Perm(sort([seq(1 .. P1:-ns[i])], (j1, j2) -> sortKey(P1, i, j1) > sortKey(P1, i, j2), 'output' = 'permutation'))^(-1);
-            taus := [op(taus), tau];
-        end do;
-        a1 := AdmissibleOperation[ColumnOperation](P1:-format, Perm([]), taus, Perm([]));
-        P2 := applyAdmissibleOperation(P1, a1);
-
-        # This is the comparison function we will use to sort the blocks themselves.
-        # It returns true if the block of index `i1` should occur before the block of index `i2`.
-        compfun := proc(P :: PMatrix, i1 :: integer, i2 :: integer)
-            local j;
-            if nops(P:-lss[i1]) < nops(P:-lss[i2]) then return false;
-            elif nops(P:-lss[i1]) > nops(P:-lss[i2]) then return true;
-            else
-                for j from 1 to nops(P:-lss[i1]) do
-                    if sortKey(P, i1, j) < sortKey(P, i2, j) then return false;
-                    elif sortKey(P, i1, j) > sortKey(P, i2, j) then return true;
-                    end if;
-                end do;
-                return true;
-            end if;
-        end proc;
-        sigma := Perm(sort([seq(1 .. P2:-r)], (i1, i2) -> compfun(P2, i1, i2), 'output' = 'permutation'))^(-1);
-        a2 := AdmissibleOperation[ColumnOperation](P2:-format, sigma, [Perm([]) $ P2:-r], Perm([]));
-        P3 := applyAdmissibleColumnOperation1(P2, a2);
-        a := a1 . a2;
-
-        return a;
-
-    end proc;
-
-    export sortColumnsByAdjustedSlopes :: static := proc(P :: PMatrix)
-        applyAdmissibleOperation(P, sortColumnsByAdjustedSlopesOperation(P));
-    end proc;
-
-
     (* *******************
     ** EQUIVALENCE TEST **
     **********************)
@@ -1188,16 +1181,8 @@ module PMatrix()
     end proc;
 
     (*
-    Checks whether two P-Matrices `P1` and `P2` are eqiuvalent, i.e. can be transformed into each other
-    by a series of admissible operations.
-    TODO: Output the admissible operations turning `P1` into `P2`.
-
-    Currently, we are working with two different algorithms for equivalence checking.
-    The first one only works for surfaces, but is a lot more efficient (sort the columns by the adjusted slopes)
-    The second one works in general, but has exponential running time in the number of blocks (roughly speaking).
-    Eventually, the first one should be generalized to get an efficient algorithm in general, but this will require some
-    theoretical work first.
-
+    Computes all admissible operations turning `P1_` into `P2_`. If `P1_` and `P2_` are not equivalent
+    by admissible operations, this returns the empty list.
     *)
     export areEquivalentOperations :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
         local Ps, P, i, P1, P2, P11, P12, a0, admOps, resultOps, a, rowOp;
@@ -1216,62 +1201,41 @@ module PMatrix()
             return [];
         end if; 
         
-        # DISABLED FOR NOW
-        # Only check isomorphism as complexity-one varieties
-        (*
-        if P1:-r = 2 then
-            # TORIC CASE
-            # In this case, the question is purely toric. We need to find an invertible integer 
-            # matrix `S` sending P1 to P2.
-            newP1 := Matrix(RowDimension(P1:-mat), RowDimension(P1:-mat), symbol = 'x') . P1:-mat;
-            sol := isolve({seq(seq(newP1[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = 1 .. RowDimension(P1:-mat))});
-            return evalb(sol <> NULL);
-        *)
-        if P1:-s = 100 then
-            # SURFACE CASE
-            # We sort the columns by adjusted slopes
-            if not 'skipSorting' in [_passed] then
-                P1 := sortColumnsByAdjustedSlopes(P1);
-                P2 := sortColumnsByAdjustedSlopes(P2);
-            end if;
-            P11 := P1;
-            P12 := sortColumnsByAdjustedSlopes(applyAdmissibleRowOperation(P1, Matrix([[0 $ P1:-r - 1]]), Matrix([[-1]])));
-            # After sorting by adjusted slopes, P1 and P2 are equivalent if and only if they are row-equivalent
-            # i.e. no need to worry about column permutations any more.
-            # (With the caveat that we don't fix the direction of the P-Matrix, which is why we work both with P1 and its negative at the same time)
-            return areRowEquivalent(P11, P2) or areRowEquivalent(P12, P2);
-        else
-            # GENERAL CASE
-            
-            # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
-            # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
-            a0 := compose(sortColumnsByLssOperation(P1), inverse(sortColumnsByLssOperation(P2)));
-            
-            # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
-            # the P-Matrices can't be equivalent.
-            if applyAdmissibleOperation(P1, a0):-lss <> P2:-lss then
-                return [];
-            end if;
-
-            # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
-            # sending the L-block of P1 to the L-block of P2.
-            admOps := map(a -> compose(a, a0), invariantAdmissibleOperations(P1));
-
-            # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
-            resultOps := [];
-            for a in admOps do
-                rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2);
-                if type(rowOp, AdmissibleOperation) then
-                    resultOps := [op(resultOps), compose(a, rowOp)];
-                end if;
-            end do;
-
-            return resultOps;
+        # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
+        # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
+        a0 := compose(sortColumnsByLssOperation(P1), inverse(sortColumnsByLssOperation(P2)));
+        
+        # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
+        # the P-Matrices can't be equivalent.
+        if applyAdmissibleOperation(P1, a0):-lss <> P2:-lss then
+            return [];
         end if;
+
+        # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
+        # sending the L-block of P1 to the L-block of P2.
+        admOps := map(a -> compose(a, a0), invariantAdmissibleOperations(P1));
+
+        # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
+        resultOps := [];
+        for a in admOps do
+            rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2);
+            if type(rowOp, AdmissibleOperation) then
+                resultOps := [op(resultOps), compose(a, rowOp)];
+            end if;
+        end do;
+
+        return resultOps;
+
     end proc;
 
     export areEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        evalb(areEquivalentOperations(P1,P2) <> []);
+        if P1:-s = 1 and P2:-s = 1 then
+            # If we are in the surface case, the magic invariant is all we need
+            return evalb(P1:-magicInvariant = P2:-magicInvariant);
+        end if;
+        # In general, we need to to the hard work of determining all admissible operations
+        # turning P1 into P2.
+        return areEquivalentOperations(P1, P2) <> [];
     end proc;
 
     (*
@@ -1827,10 +1791,6 @@ module TVarOne()
        applyAdmissibleOperation(X, PMatrix[sortColumnsByLssOperation](X:-P));
     end proc;
 
-    export sortColumnsByAdjustedSlopes :: static := proc(X :: TVarOne)
-        applyAdmissibleOperation(X, PMatrix[sortColumnsByAdjustedSlopesOperation](X:-P));
-    end proc;
-
     export standardizeCoefficientMatrixOperation :: static := proc(X :: TVarOne)
         local U1, newA, ds, U2, i;
         U1 := Matrix([Column(X:-A,[1,2])])^(-1);
@@ -1883,6 +1843,10 @@ module TVarOne()
     end proc;
 
     export areIsomorphic :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+        # If we are in the surface case and there is no A-Matrix to worry about, we can use the faster test.
+        if X1:-P:-s = 1 and X2:-P:-s = 1 and (type(X1:-A, undefined) or type(X2:-A, undefined)) then
+            return areEquivalent(X1:-P, X2:-P);
+        end if;
         type(areIsomorphicOperation(X1,X2), AdmissibleOperation);
     end proc;
 
