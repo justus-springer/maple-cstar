@@ -517,6 +517,9 @@ module PMatrix()
     export mplus := undefined;
     export mminus := undefined;
 
+    export mplusFloor := undefined;
+    export mminusCeil := undefined;
+
     export betasPlus := undefined;
     export betasMinus := undefined;
 
@@ -543,6 +546,8 @@ module PMatrix()
         self:-minimumSlopes := map(min, self:-slopes);
         self:-mplus := add(self:-maximumSlopes);
         self:-mminus := add(self:-minimumSlopes);
+        self:-mplusFloor := add(map(floor, self:-maximumSlopes));
+        self:-mminusCeil := add(map(ceil, self:-minimumSlopes));
         self:-betasPlus := [seq([seq(self:-slopes[i,j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
         self:-betasMinus := [seq([seq(self:-slopes[i,j] - ceil(self:-minimumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
         self:-magicInvariant := [sortLex([self:-mplus, -self:-mminus]), sortLex([self:-betasPlus, -self:-betasMinus])];
@@ -608,10 +613,12 @@ module PMatrix()
     (*
     This procedure creates a PMatrix from various kinds of data. It supports
     five different input methods:
+
     (1) format :: PFormat, lss :: list(list(integer)), d :: Matrix.
     (2) lss :: list(list(integer)), d :: Matrix.
     (3) format :: PFormat, P :: Matrix.
     (4) s :: integer, P :: Matrix
+    (5) mplusFloor :: integer, betasPlus :: list(list(fraction)), case :: string
 
     In input method (1) and (2), `lss` is the list of exponent vectors of relations
     of the Cox Ring. These make up the first `r-1` rows of the PMatrix. The lower
@@ -625,10 +632,13 @@ module PMatrix()
     of the acting torus `s` is specified (the dimension of the overall variety will be `s+1`).
     This is necessary because `s` cannot be uniquely inferred from `P`.
 
+    TODO: Explain method (5).
+
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, format, d, rows, rows0, i, j, P, r, s, ns, numZerosBefore;
+        local lss, ls, l, format, d, rows, rows0, i, j, P, r, s, ns, numZerosBefore, mplusFloor, betasPlus, case;
+        
         if _npassed = 2 then error "not enough arguments." end if;
 
         if type(_passed[3], 'PFormat') then
@@ -738,21 +748,13 @@ module PMatrix()
             self:-P0 := P:-P0;
             self:-d := P:-d;
 
-        elif type(_passed[3], integer) then
+        elif type(_passed[3], integer) and type(_passed[4], Matrix) then
             # Input method (4)
             # s :: integer, P :: Matrix
 
-            if _npassed < 4 then
-                error "Not enough arguments. Expected input: integer, Matrix";
-            end if;
-
             s := _passed[3];
-
-            if not type(_passed[4], Matrix) then
-                error "Expected 2nd argument to be of type: Matrix";
-            end if;
-
             P := _passed[4];
+
             self:-mat := P;
 
             if s > RowDimension(P) - 1 then
@@ -863,6 +865,46 @@ module PMatrix()
             if self:-s = 1 then
                 setSurfaceData(self, self:-d, self:-lss);
             end if;
+        elif type(_passed[3], integer) and type(_passed[4], list) and type(_passed[5], string) then
+            # Input method (5)
+            # mplusFloor :: integer, betasPlus :: list(list(fraction)), case :: string
+
+            mplusFloor := _passed[3];
+            betasPlus := _passed[4];
+            case := _passed[5];
+
+            # TODO: Proper input checking
+
+            ns := map(nops, betasPlus);
+
+            self:-lss := map(betas -> map(beta -> denom(beta), betas), betasPlus);
+            self:-d := Matrix(1, add(ns),
+                [[seq(self:-lss[1,j] * (betasPlus[1,j] + mplusFloor), j = 1 .. ns[1]),
+                  seq(seq(self:-lss[i,j] * betasPlus[i,j], j = 1 .. ns[i]), i = 2 .. nops(ns))]]);
+
+            if case = "PE" then
+                self:-d := <self:-d | 1>;
+                setFormat(self, PFormat(ns, 1, 1));
+            elif case = "EP" then
+                self:-d := <self:-d | -1>;
+                setFormat(self, PFormat(ns, 1, 1));
+            elif case = "PP+" then
+                self:-d := <self:-d | 1 | -1>;
+                setFormat(self, PFormat(ns, 2, 1));
+            elif case = "PP-" then
+                self:-d := <self:-d | -1 | 1>;
+                setFormat(self, PFormat(ns, 2, 1));
+            elif case = "EE" then
+                setFormat(self, PFormat(ns, 0, 1));
+            else
+                error "The case must be one of the five strings: \"EE\", \"EP\", \"PE\", \"PP+\" and \"PP-\".";
+            end if; 
+
+            P := PMatrix(self:-format, self:-lss, self:-d);
+            self:-mat := P:-mat;
+            self:-P0 := P:-P0;
+            setSurfaceData(self, self:-d, self:-lss);
+
         end if;
 
     end;
@@ -1260,6 +1302,17 @@ module PMatrix()
         # In general, we need to to the hard work of determining all admissible operations
         # turning P1 into P2.
         return areEquivalentOperations(P1, P2) <> [];
+    end proc;
+
+    (*
+    Computes the normal form for a P-Matrix of a surface.
+    *)
+    export normalForm :: static := proc(P :: PMatrix)
+        if P:-orientation = -1 then
+            PMatrix(- P:-mminusCeil, sortLex(- P:-betasMinus), P:-case);
+        else
+            PMatrix(P:-mplusFloor, sortLex(P:-betasPlus), P:-case);
+        end if;
     end proc;
 
     (*
