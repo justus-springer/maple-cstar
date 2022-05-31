@@ -35,7 +35,7 @@ export invariantPermutations := proc(ls :: list, compFun := `=`)
     return foldl((p1, p2) -> [seq(seq(a . b, b in p2), a in p1)], [Perm([[]])], op(permsList));
 end proc;
 
-local sortLexComparison := proc(a :: {numeric, list}, b :: {numeric, list})
+export sortLexComparison := proc(a :: {numeric, list}, b :: {numeric, list})
     local i;
     if type(a, numeric) and type(b, numeric) then
         return a > b;
@@ -46,9 +46,9 @@ local sortLexComparison := proc(a :: {numeric, list}, b :: {numeric, list})
             return false;
         end if;
         for i from 1 to nops(a) do
-            if sortLexComparison(a[i], b[i]) and not sortLexComparison(b[i], a[i]) then
+            if sortLexComparison(a[i], b[i]) then
                 return true
-            elif sortLexComparison(b[i], a[i]) and not sortLexComparison(a[i], b[i]) then 
+            elif sortLexComparison(b[i], a[i]) then 
                 return false;
             end if;
         end do;
@@ -509,14 +509,19 @@ module PMatrix()
     # same indexing as in the `lss`.
     export slopes := undefined;
 
-    # The sum of the biggest resp. smallest slopes in each block.
+    # The maximum resp. minimum slopes in each block
     export maximumSlopes := undefined;
     export minimumSlopes := undefined;
+
+    # The sum of the maximum resp. minimum slopes
     export mplus := undefined;
     export mminus := undefined;
 
     export betasPlus := undefined;
     export betasMinus := undefined;
+
+    # The orientation of the P-Matrix. It is either +1, -1 or 0.
+    export orientation := undefined;
 
     export magicInvariant := undefined;
 
@@ -538,24 +543,43 @@ module PMatrix()
         self:-minimumSlopes := map(min, self:-slopes);
         self:-mplus := add(self:-maximumSlopes);
         self:-mminus := add(self:-minimumSlopes);
-        self:-betasPlus := [seq([seq(self:-slopes[i,j] - ceil(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
-        self:-betasMinus := [seq([seq(self:-slopes[i,j] - floor(self:-minimumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-betasPlus := [seq([seq(self:-slopes[i,j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-betasMinus := [seq([seq(self:-slopes[i,j] - ceil(self:-minimumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
         self:-magicInvariant := [sortLex([self:-mplus, -self:-mminus]), sortLex([self:-betasPlus, -self:-betasMinus])];
+        
         if self:-m = 0 then
             self:-case := "EE";
+            if self:-mplus > - self:-mminus then
+                self:-orientation := 1;
+            elif self:-mplus < -self:-mminus then
+                self:-orientation := -1;
+            else    
+                if sortLexComparison(sortLex(self:-betasPlus), sortLex(-self:-betasMinus)) then
+                    self:-orientation := 1;
+                elif sortLexComparison(sortLex(-self:-betasMinus), sortLex(self:-betasPlus)) then
+                    self:-orientation := -1;
+                else
+                    self:-orientation := 0;
+                end if;
+            end if;
         elif self:-m = 1 then
             if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
                 self:-case := "PE";
+                self:-orientation := 1;
             elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
                 self:-case := "EP";
+                self:-orientation := -1;
             end if;
         elif self:-m = 2 then
             if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
                 self:-case := "PP+";
+                self:-orientation := 1;
             elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
                 self:-case := "PP-";
+                self:-orientation := -1;
             end if;
         end if;
+        
     end proc;
 
     # Check if all columns of P are primitive
@@ -2079,9 +2103,6 @@ ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
 
     for k from 1 to nops(Xs) do
         X := Xs[k];
-        # Normalize the given T-Variety.
-        # DISABLED FOR NOW
-        # X := normalizeTVarOne(Xs[k]);
         
         # Only insert `X` if it is not already present.
         # Can be disabled by the 'noChecks' option
