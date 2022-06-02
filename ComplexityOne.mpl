@@ -6,13 +6,13 @@ export
     PFormat, 
     AdmissibleOperation, 
     PMatrix, 
-    TVarOne, 
+    ComplexityOneVariety, 
     
     # Database stuff
     FindInDatabase, 
-    ImportTVarOneList, 
-    ImportTVarOne, 
-    ExportTVarOneList, 
+    ImportComplexityOneVarietyList, 
+    ImportComplexityOneVariety, 
+    ExportComplexityOneVarietyList, 
     performOnDatabase;
 
 local

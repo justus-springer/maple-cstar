@@ -1,8 +1,8 @@
 
-module TVarOne()
+module ComplexityOneVariety()
     option object;
 
-    # These fields are guaranteed to be filled when a TVarOne is created.
+    # These fields are guaranteed to be filled when a ComplexityOneVariety is created.
     export P;
     export Sigma := undefined;
     export A := undefined;
@@ -27,10 +27,10 @@ module TVarOne()
     export exceptionalDivisorsIndices := undefined;
 
     export ModuleApply :: static := proc()
-        Object(TVarOne, _passed);
+        Object(ComplexityOneVariety, _passed);
     end;
 
-    export setCoefficientMatrix :: static := proc(self :: TVarOne, A :: Matrix)
+    export setCoefficientMatrix :: static := proc(self :: ComplexityOneVariety, A :: Matrix)
         local P, f, lss, i, j, alpha;
         P := self:-P;
         f := P:-format;
@@ -70,7 +70,7 @@ module TVarOne()
     provided later with the `setCoefficientMatrix` procedure.
 
     *)
-    export ModuleCopy :: static := proc(self :: TVarOne, proto :: TVarOne, P :: PMatrix)
+    export ModuleCopy :: static := proc(self :: ComplexityOneVariety, proto :: ComplexityOneVariety, P :: PMatrix)
         local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A;
 
         self:-P := P;
@@ -192,7 +192,7 @@ module TVarOne()
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             elif admitsFano(P) then
                 # In this case, we call the procedure again with the anticanonical class as the weight.
-                return TVarOne[ModuleCopy](self, proto, P, getAnticanClass(P));
+                return ComplexityOneVariety[ModuleCopy](self, proto, P, getAnticanClass(P));
             else
                 error "This PMatrix is neither of Picard number one, nor is it a surface, nor does it admit a Fano variety."
                       "Therefore, you must provide a fan Sigma or a weight w as input.";
@@ -200,27 +200,27 @@ module TVarOne()
         end if;
     end;
 
-    export setMaximalXCones :: static := proc(self :: TVarOne, maximalXCones :: set(set(integer))) 
+    export setMaximalXCones :: static := proc(self :: ComplexityOneVariety, maximalXCones :: set(set(integer))) 
         self:-maximalXCones := maximalXCones;
     end;
 
-    export getMaximalXCones :: static := proc(self :: TVarOne)
+    export getMaximalXCones :: static := proc(self :: ComplexityOneVariety)
         if type(self:-maximalXCones, undefined) or 'forceCompute' in [_passed] then
             setMaximalXCones(self, getMaximalXConesFormat(self:-P:-format, self:-Sigma));
         end if;
         return self:-maximalXCones;
     end;
 
-    export setIsGorensteinVal :: static := proc(self :: TVarOne, isGorensteinVal :: boolean) 
+    export setIsGorensteinVal :: static := proc(self :: ComplexityOneVariety, isGorensteinVal :: boolean) 
         self:-isGorensteinVal := isGorensteinVal;
     end proc;
 
-    export setGorensteinIndex :: static := proc(self :: TVarOne, gorensteinIndex :: integer) 
+    export setGorensteinIndex :: static := proc(self :: ComplexityOneVariety, gorensteinIndex :: integer) 
         self:-gorensteinIndex := gorensteinIndex;
         setIsGorensteinVal(self, evalb(gorensteinIndex = 1));
     end proc;
 
-    export getGorensteinIndex :: static := proc(self :: TVarOne)
+    export getGorensteinIndex :: static := proc(self :: ComplexityOneVariety)
         local cone;
         if type(self:-gorensteinIndex, undefined) or 'forceCompute' in [_passed] then
             setGorensteinIndex(self, ilcm(seq(gorensteinIndexForXCone(self:-P, cone), cone in getMaximalXCones(self))));
@@ -231,7 +231,7 @@ module TVarOne()
     (*
     Checks whether the variety is gorenstein.
     *)
-    export isGorenstein :: static := proc(self :: TVarOne)
+    export isGorenstein :: static := proc(self :: ComplexityOneVariety)
         local cone;
         if type(self:-isGorensteinVal, undefined) or 'forceCompute' in [_passed] then
             # This method could simply be implemented by computing the gorenstein index and
@@ -255,9 +255,9 @@ module TVarOne()
         return self:-isGorensteinVal;
     end proc;
 
-    export setAmpleCone :: static := proc(self :: TVarOne, ampleCone :: CONE) self:-ampleCone := ampleCone; end proc;
+    export setAmpleCone :: static := proc(self :: ComplexityOneVariety, ampleCone :: CONE) self:-ampleCone := ampleCone; end proc;
 
-    export getAmpleCone :: static := proc(self :: TVarOne)
+    export getAmpleCone :: static := proc(self :: ComplexityOneVariety)
         local cone;
         if type(self:-ampleCone, undefined) or 'forceCompute' in [_passed] then
             setAmpleCone(self, intersection(seq(poshull(Column(getQ0(self:-P), [op({seq(1 .. ColumnDimension(getQ0(self:-P)))} minus cone)])), cone in getMaximalXCones(self))));
@@ -265,18 +265,18 @@ module TVarOne()
         return self:-ampleCone;
     end proc;
 
-    export setIsFanoVal :: static := proc(self :: TVarOne, isFanoVal :: boolean) self:-isFanoVal := isFanoVal; end proc;
+    export setIsFanoVal :: static := proc(self :: ComplexityOneVariety, isFanoVal :: boolean) self:-isFanoVal := isFanoVal; end proc;
 
-    export isFano :: static := proc(self :: TVarOne)
+    export isFano :: static := proc(self :: ComplexityOneVariety)
         if type(self:-isFanoVal, undefined) or 'forceCompute' in [_passed] then
             setIsFanoVal(self, containsrelint(getAmpleCone(self), getAnticanClass(self:-P)));
         end if;
         return self:-isFanoVal
     end proc;
 
-    export setintersectionTable :: static := proc(self :: TVarOne, intersectionTable :: Array) self:-intersectionTable := intersectionTable; end proc;
+    export setintersectionTable :: static := proc(self :: ComplexityOneVariety, intersectionTable :: Array) self:-intersectionTable := intersectionTable; end proc;
 
-    export getIntersectionTable :: static := proc(X :: TVarOne)   
+    export getIntersectionTable :: static := proc(X :: ComplexityOneVariety)   
         local P, res, ordered_indices, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
 
         if type(X:-intersectionTable, undefined) or 'forceCompute' in [_passed] then
@@ -439,7 +439,7 @@ module TVarOne()
     of the primitive invariant divisors D_X^{ij} and D_X^{\pm}.
     The input data are lists of integers encoding the coefficients this linear combination.
     *)
-    export intersectionNumber :: static := proc(X :: TVarOne, D1 :: list(integer), D2 :: list(integer))
+    export intersectionNumber :: static := proc(X :: ComplexityOneVariety, D1 :: list(integer), D2 :: list(integer))
         local k1, k2;
         
         if nops(D1) <> X:-P:-n + X:-P:-m or nops(D2) <> X:-P:-n + X:-P:-m then
@@ -450,9 +450,9 @@ module TVarOne()
 
     end proc;
 
-    export setAnticanonicalSelfIntersection :: static := proc(self :: TVarOne, anticanonicalSelfIntersection) self:-anticanonicalSelfIntersection := anticanonicalSelfIntersection; end proc;
+    export setAnticanonicalSelfIntersection :: static := proc(self :: ComplexityOneVariety, anticanonicalSelfIntersection) self:-anticanonicalSelfIntersection := anticanonicalSelfIntersection; end proc;
 
-    export getAnticanonicalSelfIntersection :: static := proc(X :: TVarOne)
+    export getAnticanonicalSelfIntersection :: static := proc(X :: ComplexityOneVariety)
         if type(X:-anticanonicalSelfIntersection, undefined) or 'forceCompute' in [_passed] then
             setAnticanonicalSelfIntersection(X, intersectionNumber(X, getAnticanCoefficients(X:-P), getAnticanCoefficients(X:-P)));
         end if;
@@ -464,15 +464,15 @@ module TVarOne()
     *** ADMISSIBLE OPERATIONS ***
     *****************************)
 
-    export removeSingleRedundantBlock :: static := proc(X :: TVarOne, i0 :: integer)
+    export removeSingleRedundantBlock :: static := proc(X :: ComplexityOneVariety, i0 :: integer)
         local newP, oldToNewIndex, newSigma;
         newP := PMatrix[removeSingleRedundantBlock](X:-P, i0);
         oldToNewIndex := k -> if k < add(X:-P:-ns[1 .. i0 - 1]) + 1 then k else k - 1 end if;
         newSigma := map(cones -> map(oldToNewIndex, cones), X:-Sigma);
-        return TVarOne(newP, newSigma);
+        return ComplexityOneVariety(newP, newSigma);
     end proc;
 
-    export removeRedundantBlocks :: static := proc(X :: TVarOne)
+    export removeRedundantBlocks :: static := proc(X :: ComplexityOneVariety)
         local P, redundantIndices;
         P := X:-P;
         redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
@@ -485,24 +485,24 @@ module TVarOne()
         end if;
     end proc;
 
-    export applyAdmissibleOperation :: static := proc(X :: TVarOne, a :: AdmissibleOperation)
+    export applyAdmissibleOperation :: static := proc(X :: ComplexityOneVariety, a :: AdmissibleOperation)
         local newP, newSigma, newA;
         newP := PMatrix[applyAdmissibleOperation](X:-P, a);
         newSigma := map(cones -> map(k -> a:-bundledPerm[k], cones), X:-Sigma);
         if type(X:-A, undefined) then
-            TVarOne(newP, newSigma);
+            ComplexityOneVariety(newP, newSigma);
         else
             newA := a:-U . X:-A . a:-D . a:-sigmaPermutationMatrix^(-1);
-            TVarOne(newP, newSigma, newA);
+            ComplexityOneVariety(newP, newSigma, newA);
         end if;
 
     end proc;
 
-    export sortColumnsByLss :: static := proc(X :: TVarOne)
+    export sortColumnsByLss :: static := proc(X :: ComplexityOneVariety)
        applyAdmissibleOperation(X, PMatrix[sortColumnsByLssOperation](X:-P));
     end proc;
 
-    export standardizeCoefficientMatrixOperation :: static := proc(X :: TVarOne)
+    export standardizeCoefficientMatrixOperation :: static := proc(X :: ComplexityOneVariety)
         local U1, newA, ds, U2, i;
         U1 := Matrix([Column(X:-A,[1,2])])^(-1);
         newA := U1 . X:-A;
@@ -511,11 +511,11 @@ module TVarOne()
         AdmissibleOperation[OnA](X:-P:-format, U2 . U1, ds);
     end proc;
 
-    export standardizeCoefficientMatrix :: static := proc(X :: TVarOne)
+    export standardizeCoefficientMatrix :: static := proc(X :: ComplexityOneVariety)
         applyAdmissibleOperation(X, standardizeCoefficientMatrixOperation(X));
     end proc;
     
-    export areCoefficientMatricesEquivalentOperation :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areCoefficientMatricesEquivalentOperation :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
         local a1, a2;
         a1 := standardizeCoefficientMatrixOperation(X1);
         a2 := standardizeCoefficientMatrixOperation(X2);
@@ -525,11 +525,11 @@ module TVarOne()
         return NULL;
     end proc;
 
-    export areCoefficientMatricesEquivalent :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areCoefficientMatricesEquivalent :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
         type(areCoefficientMatricesEquivalentOperation(X1, X2), AdmissibleOperation);
     end proc;
 
-    export areIsomorphicOperation :: static := proc(X1_ :: TVarOne, X2_ :: TVarOne)
+    export areIsomorphicOperation :: static := proc(X1_ :: ComplexityOneVariety, X2_ :: ComplexityOneVariety)
         local X1, X2, a, newX1, coefficientOp;
         X1 := removeRedundantBlocks(X1_);
         X2 := removeRedundantBlocks(X2_);
@@ -553,7 +553,7 @@ module TVarOne()
         return NULL;
     end proc;
 
-    export areIsomorphic :: static := proc(X1 :: TVarOne, X2 :: TVarOne)
+    export areIsomorphic :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
         # If we are in the surface case and there is no A-Matrix to worry about, we can use the faster test.
         if X1:-P:-s = 1 and X2:-P:-s = 1 and (type(X1:-A, undefined) or type(X2:-A, undefined)) then
             return areEquivalent(X1:-P, X2:-P);
@@ -562,9 +562,9 @@ module TVarOne()
     end proc;
 
     (*
-    Construct the tropical resolution of a TVarOne.
+    Construct the tropical resolution of a ComplexityOneVariety.
     *)
-    export tropicalResolution :: static := proc(X :: TVarOne)
+    export tropicalResolution :: static := proc(X :: ComplexityOneVariety)
         local P, tropicalSheetsGenerators, tropicalCones, newCones, Pcols, newPMatrixColumns, newP, newSigma, k, i;
 
         P := X:-P;
@@ -586,11 +586,11 @@ module TVarOne()
         # Convert back from CONEs to lists of integers to get out new fan
         newSigma := map(c -> convexConeToIntSetCone(newP, c), newCones);
 
-        return TVarOne(newP, newSigma);
+        return ComplexityOneVariety(newP, newSigma);
 
     end proc;
 
-    export canonicalResolution :: static := proc(X0 :: TVarOne)
+    export canonicalResolution :: static := proc(X0 :: ComplexityOneVariety)
         local X, P, myFan, newFan, Pcols, allRays, newRayBlocks, newPColumns, newP, newSigma, newX, i, exceptDivIndices;
 
         X := tropicalResolution(X0);
@@ -616,30 +616,30 @@ module TVarOne()
 
         newP := PMatrix(P:-s, Transpose(Matrix(newPColumns)));
         newSigma := {op(map(c -> convexConeToIntSetCone(newP, c), maximal(newFan)))};
-        newX := TVarOne(newP, newSigma);
+        newX := ComplexityOneVariety(newP, newSigma);
         newX:-exceptionalDivisorsIndices := exceptDivIndices;
         return newX;
 
     end proc;
 
-    export minimalResolution :: static := proc(X0 :: TVarOne)
+    export minimalResolution :: static := proc(X0 :: ComplexityOneVariety)
         local X, P, contracticleIndices;
         X := canonicalResolution(X0);
         contracticleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         while contracticleIndices <> [] do
-            X := TVarOne(PMatrix(1, DeleteColumn(X:-P:-mat, contracticleIndices)));
+            X := ComplexityOneVariety(PMatrix(1, DeleteColumn(X:-P:-mat, contracticleIndices)));
             contracticleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         end do;
         return X;
     end proc;
 
-    export ModulePrint :: static := proc(self :: TVarOne)
-        nprintf(cat("TVarOne(dim = ", self:-P:-s + 1,
+    export ModulePrint :: static := proc(self :: ComplexityOneVariety)
+        nprintf(cat("ComplexityOneVariety(dim = ", self:-P:-s + 1,
           ", lss = ", self:-P:-lss,
           ", Sigma = ", self:-Sigma));
     end;
 
-    export TVarOneInfo :: static := proc(self :: TVarOne)
+    export ComplexityOneVarietyInfo :: static := proc(self :: ComplexityOneVariety)
         local P, i, relations, maximalXCones, Q, classGroup, picardNumber, anticanClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
         print(P = self:-P:-mat);
         print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
@@ -652,7 +652,7 @@ module TVarOne()
         print(effectiveConeRays = rays(getEffectiveCone(self:-P)));
         print(movingConeRays = rays(getMovingCone(self:-P)));
         print(ampleConeRays = rays(getAmpleCone(self)));
-        print(isFano = TVarOne[isFano](self));
+        print(isFano = ComplexityOneVariety[isFano](self));
         print(gorensteinIndex = getGorensteinIndex(self));
         if self:-P:-s = 1 then
             print(intersectionTable = getIntersectionTable(self));

@@ -1,5 +1,5 @@
 
-ImportTVarOneList := proc(stmt)
+ImportComplexityOneVarietyList := proc(stmt)
     local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUP, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
     local i, clm, result, P, X;
 
@@ -56,9 +56,9 @@ ImportTVarOneList := proc(stmt)
             setQ(P, Matrix(parse(Fetch(stmt, INDEX_DEGREEMATRIX))));
         end if;
 
-        # If a fan is supplied, make a TVarOne.
+        # If a fan is supplied, make a ComplexityOneVariety.
         if type(INDEX_AMBIENTFAN, integer) then
-            X := TVarOne(P, parse(Fetch(stmt, INDEX_AMBIENTFAN)));
+            X := ComplexityOneVariety(P, parse(Fetch(stmt, INDEX_AMBIENTFAN)));
             if type(INDEX_MAXIMALXCONES, integer) then
                 setMaximalXCones(X, parse(Fetch(stmt, INDEX_MAXIMALXCONES)));
             end if;
@@ -83,7 +83,7 @@ Attempts to find a given Complexity-1 variety `X` in the table `tableName` of a 
 It returns the list of rowids in the database where the P-Matrix is equivalent to the given one. 
 If the P-Matrix does not occur, it returns the empty list.
 *)
-FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
+FindInDatabase := proc(connection, tableName :: string, X :: ComplexityOneVariety)
     local P, stmtString, stmt, Xs, M, rowids, i, resids;
     P := X:-P;
     stmtString := cat("SELECT rowid,* FROM ", tableName, " WHERE ",
@@ -97,7 +97,7 @@ FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
     end if;
     
     stmt := Prepare(connection, stmtString);
-    Xs := ImportTVarOneList(stmt);
+    Xs := ImportComplexityOneVarietyList(stmt);
     M := FetchAll(stmt):
     rowids := [seq(M[i,1], i = 1 .. RowDimension(M))];
     resids := [];
@@ -110,18 +110,18 @@ FindInDatabase := proc(connection, tableName :: string, X :: TVarOne)
 end proc;
 
 (*
-Imports a single TVarOne from a database with a given rowid.
-To import multiple varieties using an arbitrary SQLite query, use `ImportTVarOneList`
+Imports a single ComplexityOneVariety from a database with a given rowid.
+To import multiple varieties using an arbitrary SQLite query, use `ImportComplexityOneVarietyList`
 *)
-ImportTVarOne := proc(db, tableName :: string, rowid :: integer)
-    ImportTVarOneList(Prepare(db, cat("SELECT * FROM ", tableName, " WHERE rowid = ", rowid)))[1];
+ImportComplexityOneVariety := proc(db, tableName :: string, rowid :: integer)
+    ImportComplexityOneVarietyList(Prepare(db, cat("SELECT * FROM ", tableName, " WHERE rowid = ", rowid)))[1];
 end proc;
 
 (*
 Given a list of varieties of complexity one `Xs` and a SQLite database connection `db`, this function
 inserts those varieties from `Xs` into the database that are not already present.
 *)
-ExportTVarOneList := proc(connection, tableName :: string, Xs :: list(TVarOne))
+ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: list(ComplexityOneVariety))
     local k, X, P, stmt, i, knownCount;
     knownCount := 0;
 
@@ -190,7 +190,7 @@ end proc;
 (*
 Helper function to perform an operation on every variety in the database, without loading them into memory all at once
 (which can be unpractical, when the database is large).
-The parameter `f` is a function taking a `TVarOne` as first argument and an integer as second argument, which is the
+The parameter `f` is a function taking a `ComplexityOneVariety` as first argument and an integer as second argument, which is the
 position the variety occurs in the database.
 *)
 performOnDatabase := proc(db, tableName :: string, f, step := 1000)
@@ -200,7 +200,7 @@ performOnDatabase := proc(db, tableName :: string, f, step := 1000)
     numberOfSteps := ceil(numberOfEntries / step);
     for i from 1 to numberOfSteps do 
         offset := (i - 1) * step;
-        Xs := ImportTVarOneList(Prepare(db, cat("SELECT * FROM ", tableName, " LIMIT ", step, " OFFSET ", offset)));
+        Xs := ImportComplexityOneVarietyList(Prepare(db, cat("SELECT * FROM ", tableName, " LIMIT ", step, " OFFSET ", offset)));
         for j from 1 to nops(Xs) do
             f(Xs[j], offset + j);
         end do;
