@@ -184,8 +184,63 @@ module AdmissibleOperation()
 
     end proc;
 
-    export ModulePrint :: static := proc(a :: AdmissibleOperation)
-        nprintf(cat("AdmissibleOperation(sigma = ", a:-sigma, ", taus = ", a:-taus, ", rho = ", a:-rho, ", C = ", a:-C, ", T = ", a:-T, ")"));
+    export `=`::static := proc( l, r, $ )
+        if (_npassed <> 2 or not type(l, AdmissibleOperation) or not type(r, AdmissibleOperation)) then
+           return false;
+        end;
+        return 
+            l:-formatFrom = r:-formatFrom and
+            l:-sigma = r:-sigma and 
+            l:-taus = r:-taus and 
+            l:-rho = r:-rho and
+            Equal(l:-C, r:-C) and
+            Equal(l:-T, r:-T) and
+            Equal(l:-U, r:-U) and
+            l:-ds = r:-ds;
     end;
+
+    export ModulePrint :: static := proc(a :: AdmissibleOperation)
+        local str, isFirstEntry;
+        str := "AdmissibleOperation(";
+
+        if a:-sigma <> Perm([]) then
+            str := cat(str, "sigma = ", convert(a:-sigma, string), ", ");
+        end if;
+        if a:-taus <> [Perm([]) $ a:-formatFrom:-r] then
+            tausString := cat("[", convert(a:-taus[1], string));
+            for i from 2 to a:-formatFrom:-r do
+                tausString := cat(tausString, ", ", convert(a:-taus[i], string));
+            end do;
+            tausString := cat(tausString, "]");
+            str := cat(str, "taus = ", tausString, ", ");
+        end if;
+        if a:-rho <> Perm([]) then
+            str := cat(str, "rho = ", convert(a:-rho, string), ", ");
+        end if;
+        if not Equal(a:-C, Matrix(a:-formatFrom:-s, a:-formatFrom:-r - 1, fill = 0)) then
+            str := cat(str, "C = ", convert(convert(a:-C, list, nested), string), ", ");
+        end if;
+        if not Equal(a:-T, Matrix(a:-formatFrom:-s, a:-formatFrom:-s, shape = diagonal, 1)) then
+            str := cat(str, "T = ", convert(convert(a:-T, list, nested), string), ", ");
+        end if;
+        if not Equal(a:-U, Matrix([[1,0],[0,1]])) then
+            str := cat(str, "U = ", convert(convert(a:-U, list, nested), string), ", ");
+        end if;
+        if a:-ds <> [1 $ a:-formatFrom:-r] then
+            str := cat(str, "ds = ", convert(a:-ds, string), ", ");
+        end if;
+
+        if a = AdmissibleOperation[Identity](a:-formatFrom) then
+            str := cat(str, "1");
+        else
+            # Cut the last comma
+            str := str[1 .. length(str) - 2];
+        end if;
+        str := cat(str, ")");
+
+        nprintf(str);
+    end;
+
+
 
 end module;
