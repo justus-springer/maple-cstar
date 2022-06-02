@@ -98,52 +98,56 @@ module AdmissibleOperation()
         AdmissibleOperation(format, Perm([]), [Perm([]) $ format:-r], Perm([]), Matrix(format:-s, format:-r - 1, fill = 0), Matrix(format:-s, format:-s, shape = diagonal, 1), Matrix([[1,0],[0,1]]), [1 $ format:-r]);
     end proc;
 
-    export POperation :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, C :: Matrix, T :: Matrix)
+    export OnP :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm, C :: Matrix, T :: Matrix)
         AdmissibleOperation(formatFrom, sigma, taus, rho, C, T, Matrix([[1,0],[0,1]]), [1 $ formatFrom:-r]);
     end proc;
 
-    export ColumnOperation :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
-        AdmissibleOperation[POperation](formatFrom, sigma, taus, rho, Matrix(formatFrom:-s, formatFrom:-r - 1, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1));
+    export FromPermutations :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+        AdmissibleOperation[OnP](formatFrom, sigma, taus, rho, Matrix(formatFrom:-s, formatFrom:-r - 1, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1));
     end proc;
 
-    export BlockPermutation :: static := proc(formatFrom, sigma :: Perm)
-        AdmissibleOperation[ColumnOperation](formatFrom, sigma, [Perm([]) $ formatFrom:-r], Perm([]));
+    export FromSigma :: static := proc(formatFrom, sigma :: Perm)
+        AdmissibleOperation[FromPermutations](formatFrom, sigma, [Perm([]) $ formatFrom:-r], Perm([]));
     end proc;
 
-    export SingleBlockSwap :: static := proc(formatFrom :: PFormat, i1 :: integer, i2 :: integer)
-        AdmissibleOperation[BlockPermutation](formatFrom, Perm([[i1, i2]]));
+    export FromSingleBlockSwap :: static := proc(formatFrom :: PFormat, i1 :: integer, i2 :: integer)
+        AdmissibleOperation[FromSigma](formatFrom, Perm([[i1, i2]]));
     end proc;
 
-    export SingleBlockPermutation :: static := proc(formatFrom, i :: integer, tau :: Perm)
-        AdmissibleOperation[ColumnOperation](formatFrom, Perm([]), [Perm([]) $ i - 1, tau, Perm([]) $ P:-r - i], Perm([]));
+    export FromTaus :: static := proc(formatFrom, taus :: list(Perm))
+        AdmissibleOperation[FromPermutations](formatFrom, Perm([]), taus, Perm([]));
     end proc;
 
-    export LastColumnsPermutation :: static := proc(formatFrom, rho :: Perm)
-        AdmissibleOperation[ColumnOperation](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], rho);
+    export FromSingleTau :: static := proc(formatFrom, i :: integer, tau :: Perm)
+        AdmissibleOperation[FromTaus](formatFrom, [Perm([]) $ i - 1, tau, Perm([]) $ formatFrom:-r - i]);
     end proc;
 
-    export SingleColumnSwap :: static := proc(formatFrom)
-
+    export FromRho :: static := proc(formatFrom, rho :: Perm)
+        AdmissibleOperation[FromPermutations](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], rho);
     end proc;
 
-    export RowOperation :: static := proc(formatFrom :: PFormat, C :: Matrix, T :: Matrix)
-        AdmissibleOperation[POperation](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], Perm([]), C, T);
+    export FromSingleColumnSwap :: static := proc(formatFrom, i :: integer, j1 :: integer, j2 :: integer)
+        AdmissibleOperation[FromSingleTau](formatFrom, i, Perm([[j1, j2]]));
     end proc;
 
-    export AOperation :: static := proc(formatFrom, U :: Matrix, ds :: list(complex))
+    export FromRowOperation :: static := proc(formatFrom :: PFormat, C :: Matrix, T :: Matrix)
+        AdmissibleOperation[OnP](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], Perm([]), C, T);
+    end proc;
+
+    export OnA :: static := proc(formatFrom, U :: Matrix, ds :: list(complex))
         AdmissibleOperation(formatFrom, Perm([]), [Perm([]) $ formatFrom:-r], Perm([]), Matrix(formatFrom:-s, formatFrom:-r - 1, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1), U, ds);
     end proc;
 
-    export UOperation :: static := proc(formatFrom, U :: Matrix)
-        AdmissibleOperation[AOperation](formatFrom, U, [1 $ formatFrom:-r]);
+    export FromU :: static := proc(formatFrom, U :: Matrix)
+        AdmissibleOperation[OnA](formatFrom, U, [1 $ formatFrom:-r]);
     end proc;
 
-    export ScaleOperation :: static := proc(formatFrom, ds :: list(complex))
-        AdmissibleOperation[AOperation](formatFrom, Matrix([[1,0],[0,1]]), ds);
+    export FromScaling :: static := proc(formatFrom, ds :: list(complex))
+        AdmissibleOperation[OnA](formatFrom, Matrix([[1,0],[0,1]]), ds);
     end proc;
 
-    export SingleScaleOperation :: static := proc(formatFrom, i :: integer, d :: complex)
-        AdmissibleOperation[ScaleOperation](formatFrom, [1 $ i - 1, d, 1 $ formatFrom:-r - i]);
+    export FromSingleScaling :: static := proc(formatFrom, i :: integer, d :: complex)
+        AdmissibleOperation[FromScaling](formatFrom, [1 $ i - 1, d, 1 $ formatFrom:-r - i]);
     end proc;
 
     (*

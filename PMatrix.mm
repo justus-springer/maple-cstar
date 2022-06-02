@@ -684,7 +684,7 @@ module PMatrix()
             C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = i0 - 1 then -P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
         end if;
         T := Matrix(P:-s, P:-s, shape = diagonal, 1);
-        a := AdmissibleOperation[RowOperation](P:-format, C, T);
+        a := AdmissibleOperation[FromRowOperation](P:-format, C, T);
         P := applyAdmissibleOperation(P,a);
         # Now construct the new P-Matrix data
         newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {i0})];
@@ -743,7 +743,7 @@ module PMatrix()
         end proc;
         sigma := Perm(sort([seq(1 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
         
-        return AdmissibleOperation[ColumnOperation](P:-format, sigma, taus, Perm([]));
+        return AdmissibleOperation[FromPermutations](P:-format, sigma, taus, Perm([]));
 
     end proc;
 
@@ -772,7 +772,7 @@ module PMatrix()
         sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
         
         if sol <> NULL and abs(Determinant(subs(sol, T))) = 1 then
-            return AdmissibleOperation[RowOperation](P1:-format, subs(sol, C), subs(sol, T));             
+            return AdmissibleOperation[FromRowOperation](P1:-format, subs(sol, C), subs(sol, T));             
         end if;
         
         return false;
@@ -790,14 +790,14 @@ module PMatrix()
         a0 := sortColumnsByLssOperation(P0);
         P := sortColumnsByLss(P0);
 
-        admOps := map(sigma -> AdmissibleOperation[ColumnOperation](P:-format, sigma, [Perm([]) $ P:-r], Perm([])), invariantPermutations(P:-lss));
+        admOps := map(sigma -> AdmissibleOperation[FromSigma](P:-format, sigma), invariantPermutations(P:-lss));
 
         for i from 1 to P:-r do
-            taus := map(tau -> AdmissibleOperation[ColumnOperation](P:-format, Perm([]), [Perm([]) $ i - 1, tau, Perm([]) $ P:-r - i], Perm([])), invariantPermutations(P:-lss[i]));
+            taus := map(tau -> AdmissibleOperation[FromSingleTau](P:-format, i, tau), invariantPermutations(P:-lss[i]));
             admOps := map(a -> op(map(tau -> compose(a, tau), taus)), admOps);
         end do;
 
-        rhos := map(rho -> AdmissibleOperation[ColumnOperation](P:-format, Perm([]), [Perm([]) $ P:-r], Perm(rho)), combinat[permute](P:-m));
+        rhos := map(rho -> AdmissibleOperation[FromRho](P:-format, Perm(rho)), combinat[permute](P:-m));
         admOps := map(a -> op(map(rho -> compose(a, rho), rhos)), admOps);
         
         admOps := map(a -> compose(compose(a0, a), inverse(a0)), admOps);
