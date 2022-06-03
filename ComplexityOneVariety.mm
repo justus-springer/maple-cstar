@@ -109,7 +109,7 @@ module ComplexityOneVariety()
                     cone := candidates[i];
                     # If we already have a cone that's contained in this one, skip it.
                     if select(c -> c subset cone, minimalBunchCones) = {} then
-                        if containsrelint(poshull(Column(getQ0(P), [op(cone)])), w) then
+                        if containsrelint(poshull(Column(getDegreeMatrixFree(P), [op(cone)])), w) then
                             minimalBunchCones := {op(minimalBunchCones), cone};
                         end if;
                     end if;
@@ -192,7 +192,7 @@ module ComplexityOneVariety()
                 self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
             elif admitsFano(P) then
                 # In this case, we call the procedure again with the anticanonical class as the weight.
-                return ComplexityOneVariety[ModuleCopy](self, proto, P, getAnticanClass(P));
+                return ComplexityOneVariety[ModuleCopy](self, proto, P, getAnticanonicalClass(P));
             else
                 error "This PMatrix is neither of Picard number one, nor is it a surface, nor does it admit a Fano variety."
                       "Therefore, you must provide a fan Sigma or a weight w as input.";
@@ -260,7 +260,7 @@ module ComplexityOneVariety()
     export getAmpleCone :: static := proc(self :: ComplexityOneVariety)
         local cone;
         if type(self:-ampleCone, undefined) or 'forceCompute' in [_passed] then
-            setAmpleCone(self, intersection(seq(poshull(Column(getQ0(self:-P), [op({seq(1 .. ColumnDimension(getQ0(self:-P)))} minus cone)])), cone in getMaximalXCones(self))));
+            setAmpleCone(self, intersection(seq(poshull(Column(getDegreeMatrixFree(self:-P), [op({seq(1 .. ColumnDimension(getDegreeMatrixFree(self:-P)))} minus cone)])), cone in getMaximalXCones(self))));
         end if;
         return self:-ampleCone;
     end proc;
@@ -269,7 +269,7 @@ module ComplexityOneVariety()
 
     export isFano :: static := proc(self :: ComplexityOneVariety)
         if type(self:-isFanoVal, undefined) or 'forceCompute' in [_passed] then
-            setIsFanoVal(self, containsrelint(getAmpleCone(self), getAnticanClass(self:-P)));
+            setIsFanoVal(self, containsrelint(getAmpleCone(self), getAnticanonicalClass(self:-P)));
         end if;
         return self:-isFanoVal
     end proc;
@@ -640,15 +640,15 @@ module ComplexityOneVariety()
     end;
 
     export ComplexityOneVarietyInfo :: static := proc(self :: ComplexityOneVariety)
-        local P, i, relations, maximalXCones, Q, classGroup, picardNumber, anticanClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
+        local P, i, relations, maximalXCones, Q, classGroup, picardNumber, anticanonicalClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
         print(P = self:-P:-mat);
         print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
         print(relations = self:-relations);
         print(maximalXCones = getMaximalXCones(self));
-        print(Q = getQ(self:-P));
+        print(Q = getDegreeMatrix(self:-P));
         print(classGroup = getClassGroup(self:-P));
         print(picardNumber = self:-P:-picardNumber);
-        print(anticanClass = getAnticanClass(self:-P));
+        print(anticanonicalClass = getAnticanonicalClass(self:-P));
         print(effectiveConeRays = rays(getEffectiveCone(self:-P)));
         print(movingConeRays = rays(getMovingCone(self:-P)));
         print(ampleConeRays = rays(getAmpleCone(self)));

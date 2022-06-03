@@ -1,4 +1,4 @@
-ComplexityOne := module()
+ComplexityOnePackage := module()
 
 option package;
 

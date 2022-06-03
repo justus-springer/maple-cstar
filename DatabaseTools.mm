@@ -50,7 +50,7 @@ ImportComplexityOneVarietyList := proc(stmt)
             end if;
         end if;
         if type(INDEX_ANTICANCLASS, integer) then
-            setAnticanClass(P, Vector(parse(Fetch(stmt, INDEX_ANTICANCLASS))));
+            setAnticanonicalClass(P, Vector(parse(Fetch(stmt, INDEX_ANTICANCLASS))));
         end if;
         if type(INDEX_DEGREEMATRIX, integer) then
             setQ(P, Matrix(parse(Fetch(stmt, INDEX_DEGREEMATRIX))));
@@ -143,8 +143,8 @@ ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: li
             Bind(stmt, 8, P:-dim, valuetype = "integer");
             Bind(stmt, 9, P:-picardNumber, valuetype = "integer");
             Bind(stmt, 10, convert(getClassGroup(P), string), valuetype = "text");
-            Bind(stmt, 11, convert([seq(convert(Row(getQ(P), i), list), i = 1 .. RowDimension(getQ(P)))], string), valuetype = "text");
-            Bind(stmt, 12, convert(convert(getAnticanClass(P), list), string), valuetype = "text");
+            Bind(stmt, 11, convert([seq(convert(Row(getDegreeMatrix(P), i), list), i = 1 .. RowDimension(getDegreeMatrix(P)))], string), valuetype = "text");
+            Bind(stmt, 12, convert(convert(getAnticanonicalClass(P), list), string), valuetype = "text");
             Bind(stmt, 13, convert(X:-Sigma, string), valuetype = "text");
             Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
             Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");

@@ -9,19 +9,19 @@ with(Database[SQLite]):
 db := Open("../surfaces.db");
 tableName := "surfaces";
 
-testVarietyConsistency := proc(X :: TVarOne, i :: integer)
+testVarietyConsistency := proc(X :: ComplexityOneVariety, i :: integer)
     # Test class Group
     cachedClassGroup := getClassGroup(X:-P);
     computedClassGroup := getClassGroup(X:-P, 'forceCompute');
     Test(computedClassGroup, cachedClassGroup, label = cat("TEST_classGroup_", i));
     # Test degree matrix
-    cachedDegreeMatrix := getQ(X:-P);
-    computedDegreeMatrix := getQ(X:-P, 'forceCompute');
+    cachedDegreeMatrix := getDegreeMatrix(X:-P);
+    computedDegreeMatrix := getDegreeMatrix(X:-P, 'forceCompute');
     Test(Equal(computedDegreeMatrix, cachedDegreeMatrix), true, label = cat("TEST_degreeMatrix_", i));
     # Test anticanonical class
-    cachedAnticanClass := getAnticanClass(X:-P);
-    computedAnticanClass := getAnticanClass(X:-P, 'forceCompute');
-    Test(Equal(computedAnticanClass, cachedAnticanClass), true, label = cat("TEST_anticanClass_", i));
+    cachedAnticanonicalClass := getAnticanonicalClass(X:-P);
+    computedAnticanonicalClass := getAnticanonicalClass(X:-P, 'forceCompute');
+    Test(Equal(computedAnticanonicalClass, cachedAnticanonicalClass), true, label = cat("TEST_anticanonicalClass_", i));
     # Test gorenstein index
     cachedGorensteinIndex := getGorensteinIndex(X);
     computedGorensteinIndex := getGorensteinIndex(X, 'forceCompute');
