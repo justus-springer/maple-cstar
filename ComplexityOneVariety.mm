@@ -12,14 +12,36 @@ module ComplexityOneVariety()
     export monomials := undefined;
     export relations := undefined;
 
-    # These fields are only computed when needed. Use the getters below for them.
+    ###################################################################################
+    ### These fields are only computed when needed. Use the getters below for them. ###
+    ###################################################################################
+
+    # The maximal X-cones of the fan Sigma, i.e. the maximal cones of the fan of the minimal
+    # ambient toric variety
     local maximalXCones := undefined;
+
+    # The fan of the minimal ambient toric variety, stored as a `FAN` from the convex package
+    local minimalAmbientFan := undefined;
+
+    # Says whether the variety is Q-factorial, i.e. if every weil divisor admits a Cartier multiple.
+    # This is equivalent to whether the minimal ambient toric variety is Q-factorial.
+    local isQfactorialVal := undefined;
+
+    # Says whether the variety is factorial, i.e. if every weil divisor is Cartier
+    # This is equivalent to whether the minimal ambient toric variety is smooth.
+    local isFactorialVal := undefined;
+
     local gorensteinIndex := undefined;
+
     local isGorensteinVal := undefined;
+
     local ampleCone := undefined;
+
     local isFanoVal := undefined;
 
-    # The following fields are only defined for K*-surfaces, i.e. when s = 1.
+    ###############################################################################
+    ### The following fields are only defined for K*-surfaces, i.e. when s = 1. ###
+    ###############################################################################
     local intersectionTable := undefined;
     local anticanonicalSelfIntersection := undefined;
 
@@ -210,6 +232,39 @@ module ComplexityOneVariety()
         end if;
         return self:-maximalXCones;
     end;
+
+    export setMinimalAmbientFan :: static := proc(self :: ComplexityOneVariety, minimalAmbientFan :: FAN) 
+        self:-minimalAmbientFan := minimalAmbientFan;
+    end;
+
+    export getMinimalAmbientFan :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-minimalAmbientFan, undefined) or 'forceCompute' in [_passed] then
+            setMinimalAmbientFan(self, fan(op(map(c -> intSetConeToConvexCone(self:-P, c), getMaximalXCones(self)))));
+        end if;
+        return self:-minimalAmbientFan;
+    end;
+
+    export setIsQfactorialVal :: static := proc(self :: ComplexityOneVariety, isQfactorialVal :: boolean)
+        self:-isQfactorialVal := isQfactorialVal
+    end proc;
+
+    export isQfactorial :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-isQfactorialVal, undefined) or 'forceCompute' in [_passed] then
+            setIsQfactorialVal(self, issimplicial(getMinimalAmbientFan(self)));
+        end if;
+        return self:-isQfactorialVal;
+    end proc;
+
+    export setIsFactorialVal :: static := proc(self :: ComplexityOneVariety, isFactorialVal :: boolean)
+        self:-isFactorialVal := isFactorialVal
+    end proc;
+
+    export isFactorial :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-isFactorialVal, undefined) or 'forceCompute' in [_passed] then
+            setIsFactorialVal(self, isregular(getMinimalAmbientFan(self)));
+        end if;
+        return self:-isFactorialVal;
+    end proc;
 
     export setIsGorensteinVal :: static := proc(self :: ComplexityOneVariety, isGorensteinVal :: boolean) 
         self:-isGorensteinVal := isGorensteinVal;
@@ -591,12 +646,11 @@ module ComplexityOneVariety()
     end proc;
 
     export canonicalResolution :: static := proc(X0 :: ComplexityOneVariety)
-        local X, P, myFan, newFan, Pcols, allRays, newRayBlocks, newPColumns, newP, newSigma, newX, i, exceptDivIndices;
+        local X, P, newFan, Pcols, allRays, newRayBlocks, newPColumns, newP, newSigma, newX, i, exceptDivIndices;
 
         X := tropicalResolution(X0);
         P := X:-P;
-        myFan := fan(op(map(c -> intSetConeToConvexCone(P, c), getMaximalXCones(X))));
-        newFan := regularsubdiv(myFan);
+        newFan := regularsubdiv(getMinimalAmbientFan(X));
 
         Pcols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-n + P:-m)])]);
         allRays := {op(map(c -> op(rays(c)), maximal(newFan)))};
