@@ -12,7 +12,7 @@ ImportComplexityOneVarietyList := proc(stmt)
             INDEX_P := i;
         elif clm = "dimension" then
             INDEX_DIMENSION := i;
-        elif clm = "picardNumber" then
+        elif clm = "classGroupRank" then
             INDEX_PICARDNUMBER := i;
         elif clm = "classGroup" then
             INDEX_CLASSGROUP := i;
@@ -141,7 +141,7 @@ ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: li
             Bind(stmt, 6, convert(P:-lss, string), valuetype = "text");
             Bind(stmt, 7, convert([seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))], string), valuetype = "text");
             Bind(stmt, 8, P:-dim, valuetype = "integer");
-            Bind(stmt, 9, P:-picardNumber, valuetype = "integer");
+            Bind(stmt, 9, P:-classGroupRank, valuetype = "integer");
             Bind(stmt, 10, convert(getClassGroup(P), string), valuetype = "text");
             Bind(stmt, 11, convert([seq(convert(Row(getDegreeMatrix(P), i), list), i = 1 .. RowDimension(getDegreeMatrix(P)))], string), valuetype = "text");
             Bind(stmt, 12, convert(convert(getAnticanonicalClass(P), list), string), valuetype = "text");

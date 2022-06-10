@@ -6,9 +6,9 @@ module PMatrix()
     ## These fields are guaranteed to be filled when a PMatrix is created. ##
     #########################################################################
 
-    # Format data. Note that the picardNumber is just n+m - (r+s), hence we consider it
+    # Format data. Note that the classGroupRank is just n+m - (r+s), hence we consider it
     # part of the format.
-    export format, r, ns, n, m, s, dim, picardNumber;
+    export format, r, ns, n, m, s, dim, classGroupRank;
 
     # The exponents of the relations in the Cox Ring, encoded as a list of lists.
     export lss;
@@ -22,13 +22,13 @@ module PMatrix()
     ####################################################################################
 
     # The divisor class group, encoded as a list of positive integers, where the first
-    # entry is the rank (= picardNumber) and the other entries are the elementary divisors of the torsion part
+    # entry is the rank (= classGroupRank) and the other entries are the elementary divisors of the torsion part
     local classGroup := undefined;
 
     # Degree matrix of the Cox Ring
     local Q := undefined;
     
-    # Free part of the degree matrix, i.e. the first `picardNumber` rows of `Q`
+    # Free part of the degree matrix, i.e. the first `classGroupRank` rows of `Q`
     local Q0 := undefined;
 
     # Anticanonical class as a vector in the divisor class group
@@ -96,7 +96,7 @@ module PMatrix()
         self:-m := f:-m;
         self:-s := f:-s;
         self:-dim := f:-dim;
-        self:-picardNumber := f:-picardNumber;
+        self:-classGroupRank := f:-classGroupRank;
     end proc;
 
     local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
@@ -473,7 +473,7 @@ module PMatrix()
 
     export setQ :: static := proc(self :: PMatrix, Q :: Matrix) 
         self:-Q := Q; 
-        self:-Q0 := DeleteRow(Q, [seq(self:-picardNumber + 1 .. RowDimension(Q))]);
+        self:-Q0 := DeleteRow(Q, [seq(self:-classGroupRank + 1 .. RowDimension(Q))]);
     end proc;
 
     export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc;
@@ -501,7 +501,7 @@ module PMatrix()
         # Compute the Smith normal form.
         S_, U_ := SmithForm(Transpose(self:-mat), output = ['S','U']);
         # The first entry of `classGroup` is the picard number, i.e. the rank of the free part
-        classGroup := [self:-picardNumber];
+        classGroup := [self:-classGroupRank];
         # For the torsion part, we traverse the diagonal of `S` and add all entries that are not equal to one
         # Note that they are already given in ascending order by `SmithForm`
         for i from 1 to ColumnDimension(S_) do
@@ -514,7 +514,7 @@ module PMatrix()
         setQ0(self, IntegerRelations[LLL](DeleteRow(U_, [seq(1 .. ColumnDimension(S_))])));
         degreeMatrixTorsion := Matrix(nops(classGroup) - 1, self:-n + self:-m,
             [seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + 1), list)), i = 1 .. nops(classGroup) - 1)]);
-        setQ(self, Matrix(self:-picardNumber + nops(classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
+        setQ(self, Matrix(self:-classGroupRank + nops(classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
@@ -554,7 +554,7 @@ module PMatrix()
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
             # We normalize these entries, so that each of them is less than `d`.
             for i from 1 to nops(getClassGroup(self)) - 1 do
-                anticanVec[self:-picardNumber + i] := anticanVec[self:-picardNumber + i] mod getClassGroup(self)[i+1];
+                anticanVec[self:-classGroupRank + i] := anticanVec[self:-classGroupRank + i] mod getClassGroup(self)[i+1];
             end do;
             setAnticanonicalClass(self, anticanVec);
         end if;
@@ -896,12 +896,12 @@ module PMatrix()
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
-        local P, Q, n, m, picardNumber, classGroup, anticanonicalClass, admitsFano, i;
+        local P, Q, n, m, classGroupRank, classGroup, anticanonicalClass, admitsFano, i;
         print(P = self:-mat);
         print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
         print(Q = getDegreeMatrix(self));
         print(classGroup = getClassGroup(self));
-        print(picardNumber = self:-picardNumber);
+        print(classGroupRank = self:-classGroupRank);
         print(anticanonicalClass = getAnticanonicalClass(self));
         print(effectiveConeRays = rays(getEffectiveCone(self)));
         print(movingConeRays = rays(getMovingCone(self)));

@@ -81,7 +81,7 @@ module ComplexityOneVariety()
 
     (1) s = 1. In this case, we have a C*-surface and there is only one possible minimal ambient fan, which we
         can explicitly construct from P (see Cox Rings 5.4.1.6).
-    (2) picardNumber = 1. In this case, the number of rays of the fan is one more than the ambient dimension, hence
+    (2) classGroupRank = 1. In this case, the number of rays of the fan is one more than the ambient dimension, hence
         there is only one complete fan having P as generator matrix.
     (3) P admits a Fano variety. In this case, the anticanonical class is contained in the moving cone of P, so we can 
         use it to define a bunch of cones and hence an ambient fan. The resulting variety will be the unique Fano variety
@@ -207,7 +207,7 @@ module ComplexityOneVariety()
                     error "Invalid case. P:-case should be one of the five strings: \"EE\", \"PE\", \"EP\", \"PP+\", \"PP-\"";
                 end if;
 
-            elif P:-picardNumber = 1 then
+            elif P:-classGroupRank = 1 then
                 # In this case, the picard number is one, hence there is only one complete fan in the lattice 
                 # containing the columns of the P-Matrix as rays.
                 numColumns := ColumnDimension(P:-mat);
@@ -694,14 +694,14 @@ module ComplexityOneVariety()
     end;
 
     export ComplexityOneVarietyInfo :: static := proc(self :: ComplexityOneVariety)
-        local P, i, relations, maximalXCones, Q, classGroup, picardNumber, anticanonicalClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
+        local P, i, relations, maximalXCones, Q, classGroup, classGroupRank, anticanonicalClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
         print(P = self:-P:-mat);
         print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
         print(relations = self:-relations);
         print(maximalXCones = getMaximalXCones(self));
         print(Q = getDegreeMatrix(self:-P));
         print(classGroup = getClassGroup(self:-P));
-        print(picardNumber = self:-P:-picardNumber);
+        print(classGroupRank = self:-P:-classGroupRank);
         print(anticanonicalClass = getAnticanonicalClass(self:-P));
         print(effectiveConeRays = rays(getEffectiveCone(self:-P)));
         print(movingConeRays = rays(getMovingCone(self:-P)));

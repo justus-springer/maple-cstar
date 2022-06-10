@@ -1,7 +1,7 @@
 module PFormat()
     option object;
 
-    export r, ns, n, m, s, dim, picardNumber;
+    export r, ns, n, m, s, dim, classGroupRank;
 
     export ModuleApply :: static := proc()
         Object(PFormat, _passed);
@@ -24,7 +24,7 @@ module PFormat()
         self:-m := m;
         self:-s := s;
         self:-dim := s + 1;
-        self:-picardNumber := self:-n + self:-m - (self:-r - 1 + self:-s);
+        self:-classGroupRank := self:-n + self:-m - (self:-r - 1 + self:-s);
     end;
 
     (*
