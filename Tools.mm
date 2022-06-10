@@ -56,3 +56,34 @@ sortLex := proc(ls :: list)
     end if;
 end proc;
 
+# Given an integer Matrix `P`, compute the factor group of its image
+# The output is given as a list [r, d_1, d_2, ..., d_r], where r encodes
+# the rank of the factor group and d_1,...,d_r are the elementary divisors
+# encoding the torsion part
+imageFactorGroup := proc(P :: Matrix)
+    local S, result, i;
+    S := SmithForm(P);
+    # The rank of the resulting group is the number of zero rows in the smith normal form
+    result := [RowDimension(P) - Rank(S)];
+    # For the torsion part, we traverse the diagonal of `S` and collect the elementary divisors
+    # different from 1.
+    for i from 1 to Rank(S) do
+        if S[i,i] <> 1 then
+            result := [op(result), S[i,i]];
+        end if;
+    end do;
+    return result;
+end proc;
+
+# Given an integer Matrix `P`, compute the index of its image in the target domain.
+# By convention, this procedure returns `infinity` if `P` is not of full rank.
+indexOfImage := proc(P :: Matrix)
+    local factorGroup;
+    factorGroup := imageFactorGroup(P);
+    if factorGroup[1] > 0 then
+        return infinity;
+    else
+        return lcm(op(factorGroup[2 .. nops(factorGroup)]));
+    end if;
+end proc;
+

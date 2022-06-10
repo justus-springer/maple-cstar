@@ -27,12 +27,34 @@ module ComplexityOneVariety()
     # This is equivalent to whether the minimal ambient toric variety is Q-factorial.
     local isQfactorialVal := undefined;
 
+    # A list of local picard indices, one for each X-cone. Might contain infinite values
+    # if the variety is not Q-factorial.
+    local localPicardIndices := undefined;
+
+    # The picard index of the variety, i.e. the index of the picard group in the divisor class group.
+    # It is given as the least common multiple of all local picard indices.
+    # It is infinity if and only if the variety is not Q-factorial
+    local picardIndex := undefined;
+
     # Says whether the variety is factorial, i.e. if every weil divisor is Cartier
     # This is equivalent to whether the minimal ambient toric variety is smooth.
+    # It is also euivalent to the picard index being one.
     local isFactorialVal := undefined;
 
+    # Says whether the variety is Q-gorenstein, i.e. if the anticanonical class admits a Cartier multiple.
+    local isQgorensteinVal := undefined;
+
+    # A list of local gorenstein indices, one for each X-cone. Might contain infinite values
+    # if the variety is not Q-gorenstein.
+    local localGorensteinIndices := undefined;
+
+    # The gorenstein index of the variety.
+    # It is given as the least common multiple of all local gorenstein indices.
+    # It is infinity if and only if the variety is not Q-gorenstein.
     local gorensteinIndex := undefined;
 
+    # Says whether the variety is gorenstein, i.e. if the anticanonical class is Cartier.
+    # This is equivalent to the gorenstein index being one.
     local isGorensteinVal := undefined;
 
     local ampleCone := undefined;
@@ -266,48 +288,72 @@ module ComplexityOneVariety()
         return self:-isFactorialVal;
     end proc;
 
-    export setIsGorensteinVal :: static := proc(self :: ComplexityOneVariety, isGorensteinVal :: boolean) 
-        self:-isGorensteinVal := isGorensteinVal;
+    export setLocalPicardIndices :: static := proc(self :: ComplexityOneVariety, localPicardIndices)
+        self:-localPicardIndices := localPicardIndices;
     end proc;
 
-    export setGorensteinIndex :: static := proc(self :: ComplexityOneVariety, gorensteinIndex :: integer) 
+    export getLocalPicardIndices :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-localPicardIndices, undefined) or 'forceCompute' in [_passed] then
+            setLocalPicardIndices(self, map(c -> localPicardIndex(self:-P, c), convert(getMaximalXCones(self), list)));
+        end if;
+        return self:-localPicardIndices;
+    end proc;
+
+    export setPicardIndex :: static := proc(self :: ComplexityOneVariety, picardIndex)
+        self:-picardIndex := picardIndex;
+    end proc;
+
+    export getPicardIndex :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-picardIndex, undefined) or 'forceCompute' in [_passed] then
+            setPicardIndex(self, lcm(op(getLocalPicardIndices(self))));
+        end if;
+        return self:-picardIndex;
+    end proc;
+
+    export setLocalGorensteinIndices :: static := proc(self :: ComplexityOneVariety, localGorensteinIndices :: list)
+        self:-localGorensteinIndices := localGorensteinIndices;
+    end proc;
+
+    export getLocalGorensteinIndices :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-localGorensteinIndices, undefined) or 'forceCompute' in [_passed] then
+            setLocalGorensteinIndices(self, map(c -> localGorensteinIndex(self:-P, c), convert(getMaximalXCones(self), list)));
+        end if;
+        return self:-localGorensteinIndices;
+    end proc;
+
+    export setGorensteinIndex :: static := proc(self :: ComplexityOneVariety, gorensteinIndex) 
         self:-gorensteinIndex := gorensteinIndex;
-        setIsGorensteinVal(self, evalb(gorensteinIndex = 1));
     end proc;
 
     export getGorensteinIndex :: static := proc(self :: ComplexityOneVariety)
         local cone;
         if type(self:-gorensteinIndex, undefined) or 'forceCompute' in [_passed] then
-            setGorensteinIndex(self, ilcm(seq(gorensteinIndexForXCone(self:-P, cone), cone in getMaximalXCones(self))));
+            setGorensteinIndex(self, lcm(op(getLocalGorensteinIndices(self))));
         end if;
         return self:-gorensteinIndex;
     end proc;
 
-    (*
-    Checks whether the variety is gorenstein.
-    *)
+    export setIsGorensteinVal :: static := proc(self :: ComplexityOneVariety, isGorensteinVal :: boolean) 
+        self:-isGorensteinVal := isGorensteinVal;
+    end proc;
+
     export isGorenstein :: static := proc(self :: ComplexityOneVariety)
         local cone;
         if type(self:-isGorensteinVal, undefined) or 'forceCompute' in [_passed] then
-            # This method could simply be implemented by computing the gorenstein index and
-            # asking if it is equal to one. However, if we are not interested in the gorenstein index
-            # and just want to know if it's gorenstein or not, we can just look at the individual
-            # gorenstein indices of the X-cones and terminate as soon as we find one X-cone, where it's
-            # not equal to one. This has the advantage that if the variety is not Gorenstein, we find that
-            # out early, without computing gorenstein indices for *every* X-cone.
-            for cone in getMaximalXCones(self) do
-                if gorensteinIndexForXCone(self:-P, cone) <> 1 then
-                    # Not gorenstein, we are done.
-                    setIsGorensteinVal(self, false);
-                    break;
-                end if;
-            end do;
-            if type(self:-isGorensteinVal, undefined) then
-                setIsGorensteinVal(self, true);
-                setGorensteinIndex(self, 1);
-            end if;
+            setIsGorensteinVal(self, evalb(getGorensteinIndex(self) = 1));
         end if;
         return self:-isGorensteinVal;
+    end proc;
+
+    export setIsQgorensteinVal :: static := proc(self :: ComplexityOneVariety, isQgorensteinVal :: boolean)
+        self:-isQgorensteinVal := isQgorensteinVal;
+    end proc;
+
+    export isQgorenstein :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-isQgorensteinVal, undefined) or 'forceCompute' in [_passed] then
+            setIsQgorensteinVal(self, evalb(getGorensteinIndex(self) < infinity));
+        end if;
+        return self:-isQgorensteinVal;
     end proc;
 
     export setAmpleCone :: static := proc(self :: ComplexityOneVariety, ampleCone :: CONE) self:-ampleCone := ampleCone; end proc;

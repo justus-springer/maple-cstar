@@ -562,25 +562,35 @@ module PMatrix()
     end;
 
     (*
-    Compute the linear form solving the Gorenstein condition on a given X-cone,
-    if there are any.
-    *)
-    export getLinearFormForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-        local as, u, us, i, j, sol;
-        as := getAnticanCoefficients(self);
-        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
-        return solve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
-    end;
-
-    (*
     Computes the gorenstein index of a given X-cone. 
     That is, the smallest positive integer n such that n*K_X is Cartier on the toric orbit 
     defined by the X-cone, where K_X is the anticanonical divisor.
     *)
-    export gorensteinIndexForXCone :: static := proc(self :: PMatrix, cone :: set(integer))
-        local e;
-        return ilcm(seq(denom(rhs(e)), e in getLinearFormForXCone(self, cone)));
+    export localGorensteinIndex :: static := proc(self :: PMatrix, cone :: set(integer))
+        local as, u, us, i, j, sol, e;
+        as := getAnticanCoefficients(self);
+        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        sol := solve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
+        if sol = NULL then
+            return infinity;
+        else
+            return ilcm(seq(denom(rhs(e)), e in sol));
+        end if;
     end;
+    
+    (*
+    Computes the local class group of the variety associated to a P-Matrix.
+    *)
+    export getLocalClassGroup :: static := proc(self :: PMatrix, cone :: set(integer))
+        imageFactorGroup(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)])));
+    end proc;
+
+    (*
+    Computes the local picard index of a given X-cone.
+    *)
+    export localPicardIndex :: static := proc(self :: PMatrix, cone :: set(integer))
+        indexOfImage(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)])));
+    end proc;
 
     export getEffectiveCone :: static := proc(self :: PMatrix)
         if type(self:-effectiveCone, undefined) or 'forceCompute' in [_passed] then
@@ -629,32 +639,6 @@ module PMatrix()
             setIsIrredundantVal(P, evalb(P:-r = 2 or redundantIndices = []));
         end if;
         return P:-isIrredundantVal;        
-    end proc;
-
-    (*
-    Computes the local class group of the variety associated to a P-Matrix.
-    The first argument is the P-Matrix. The second argument is a cone corresponding
-    to a toric orbit, encoded as a list of integers.
-    The output is encoded as a list of integers, where the first entry is the rank of
-    the free part and all remaining entries are the elementary divisors of the torsion part.
-    *)
-    export getLocalClassGroup :: static := proc(self :: PMatrix, cone :: set(integer))
-        local Psub, S_, U_, localRank, localClassGroup, i;
-        # We need to compute a smith form of a submatrix of the P-Matrix, where
-        # we removed all columns that do not occur on `cone`.
-        Psub := DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)]);
-        S_, U_ := SmithForm(Transpose(Psub), output = ['S', 'U']);
-        # The rank of the local class group
-        localRank := max(0, RowDimension(S_) - ColumnDimension(S_));
-        localClassGroup := [localRank];
-        # For the torsion part, we traverse the diagonal of `S` and add all entries that are not equal to one
-        # Note that they are already given in ascending order by `SmithForm`
-        for i from 1 to min(ColumnDimension(S_), RowDimension(S_)) do
-            if S_[i,i] <> 1 then
-                localClassGroup := [op(localClassGroup), S_[i,i]];
-            end if;
-        end do;
-        return localClassGroup;
     end proc;
 
     export applyAdmissibleOperation :: static := proc(P :: PMatrix, a :: AdmissibleOperation)
