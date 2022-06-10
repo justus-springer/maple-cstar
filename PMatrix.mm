@@ -26,10 +26,10 @@ module PMatrix()
     local classGroup := undefined;
 
     # Degree matrix of the Cox Ring
-    local Q := undefined;
+    local degreeMatrix := undefined;
     
     # Free part of the degree matrix, i.e. the first `classGroupRank` rows of `Q`
-    local Q0 := undefined;
+    local degreeMatrixFree := undefined;
 
     # Anticanonical class as a vector in the divisor class group
     local anticanonicalClass := undefined;
@@ -471,12 +471,12 @@ module PMatrix()
 
     export setClassGroup :: static := proc(self :: PMatrix, classGroup :: list(integer)) self:-classGroup := classGroup; end proc;
 
-    export setQ :: static := proc(self :: PMatrix, Q :: Matrix) 
-        self:-Q := Q; 
-        self:-Q0 := DeleteRow(Q, [seq(self:-classGroupRank + 1 .. RowDimension(Q))]);
+    export setDegreeMatrix :: static := proc(self :: PMatrix, degreeMatrix :: Matrix) 
+        self:-degreeMatrix := degreeMatrix; 
+        self:-degreeMatrixFree := DeleteRow(degreeMatrix, [seq(self:-classGroupRank + 1 .. RowDimension(degreeMatrix))]);
     end proc;
 
-    export setQ0 :: static := proc(self :: PMatrix, Q0 :: Matrix) self:-Q0 := Q0; end proc;
+    export setDegreeMatrixFree :: static := proc(self :: PMatrix, degreeMatrixFree :: Matrix) self:-degreeMatrixFree := degreeMatrixFree; end proc;
 
     export setAnticanCoefficients :: static := proc(self :: PMatrix, anitcanCoefficients) self:-anitcanCoefficients := anitcanCoefficients; end proc;
 
@@ -511,10 +511,10 @@ module PMatrix()
         end do;
         setClassGroup(self, classGroup);
         # Now read off the degree matrix from `U`.
-        setQ0(self, IntegerRelations[LLL](DeleteRow(U_, [seq(1 .. ColumnDimension(S_))])));
+        setDegreeMatrixFree(self, IntegerRelations[LLL](DeleteRow(U_, [seq(1 .. ColumnDimension(S_))])));
         degreeMatrixTorsion := Matrix(nops(classGroup) - 1, self:-n + self:-m,
             [seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + 1), list)), i = 1 .. nops(classGroup) - 1)]);
-        setQ(self, Matrix(self:-classGroupRank + nops(classGroup) - 1, self:-n + self:-m, [[self:-Q0],[degreeMatrixTorsion]]));
+        setDegreeMatrix(self, Matrix(self:-classGroupRank + nops(classGroup) - 1, self:-n + self:-m, [[self:-degreeMatrixFree],[degreeMatrixTorsion]]));
     end;
 
     export getClassGroup :: static := proc(self :: PMatrix)
@@ -525,17 +525,17 @@ module PMatrix()
     end;
 
     export getDegreeMatrix :: static := proc(self :: PMatrix)
-        if type(self:-Q, undefined) or 'forceCompute' in [_passed] then
+        if type(self:-degreeMatrix, undefined) or 'forceCompute' in [_passed] then
             computeSmithForm(self);
         end if;
-        return self:-Q;
+        return self:-degreeMatrix;
     end;
 
     export getDegreeMatrixFree :: static := proc(self :: PMatrix)
-        if type(self:-Q0, undefined) or 'forceCompute' in [_passed] then
+        if type(self:-degreeMatrixFree, undefined) or 'forceCompute' in [_passed] then
             computeSmithForm(self);
         end if;
-        return self:-Q0;
+        return self:-degreeMatrixFree;
     end;
 
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
