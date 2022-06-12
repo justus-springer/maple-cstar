@@ -310,6 +310,14 @@ module ComplexityOneVariety()
         return self:-picardIndex;
     end proc;
 
+    export getLocalCartierIndices :: static := proc(self :: ComplexityOneVariety, D :: list(integer))
+        map(c -> localCartierIndex(self:-P, c, D), convert(getMaximalXCones(self), list));
+    end proc;
+
+    export getCartierIndex :: static := proc(self :: ComplexityOneVariety, D :: list(integer))
+        lcm(op(getLocalCartierIndices(self, D)));
+    end proc;
+
     export setLocalGorensteinIndices :: static := proc(self :: ComplexityOneVariety, localGorensteinIndices :: list)
         self:-localGorensteinIndices := localGorensteinIndices;
     end proc;

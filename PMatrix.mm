@@ -561,21 +561,28 @@ module PMatrix()
         return self:-anticanonicalClass;
     end;
 
+    export localCartierIndex :: static := proc(self :: PMatrix, cone :: set(integer), D :: list(integer))
+        local us, sol;
+        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        sol := solve({seq(DotProduct(us, Column(self:-mat, j)) = D[j], j in cone)});
+        if sol = NULL then
+            return infinity;
+        else
+            return ilcm(seq(denom(rhs(e)), e in sol));
+        end if;
+    end proc;
+
+    export isLocallyPrincipal :: static := proc(self :: PMatrix, cone :: set(integer), D :: list(integer))
+        evalb(localCartierIndex(self, cone, D) < infinity);
+    end proc;
+
     (*
     Computes the gorenstein index of a given X-cone. 
     That is, the smallest positive integer n such that n*K_X is Cartier on the toric orbit 
     defined by the X-cone, where K_X is the anticanonical divisor.
     *)
     export localGorensteinIndex :: static := proc(self :: PMatrix, cone :: set(integer))
-        local as, u, us, i, j, sol, e;
-        as := getAnticanCoefficients(self);
-        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
-        sol := solve({seq(DotProduct(us, Column(self:-mat, j)) = as[j], j in cone)});
-        if sol = NULL then
-            return infinity;
-        else
-            return ilcm(seq(denom(rhs(e)), e in sol));
-        end if;
+        localCartierIndex(self, cone, getAnticanCoefficients(self));
     end;
     
     (*
