@@ -48,7 +48,7 @@ module PMatrix()
     local isToricVal := undefined;
 
     # Says whether the PMatrix is irredundant, i.e. has no redundant blocks consisting of
-    # a single one. You can use the procedure `removeRedundantBlocks` on a P-Matrix to pass
+    # a single one. You can use the procedure `removeErasableBlocks` on a P-Matrix to pass
     # to get an irredundant PMatrix equivalent to the original one.
     local isIrredundantVal := undefined;
 
@@ -634,7 +634,7 @@ module PMatrix()
 
     export isToric :: static := proc(P :: PMatrix)
         if type(P:-isToricVal, undefined) or 'forceCompute' in [_passed] then
-            setIsToricVal(P, evalb(removeRedundantBlocks(P):-r = 2));
+            setIsToricVal(P, evalb(removeErasableBlocks(P):-r = 2));
         end if;
         return P:-isToricVal;
     end proc;
@@ -689,13 +689,13 @@ module PMatrix()
     Note that this can change the lower `s` rows of a P-Matrix, as admissible row operations may be 
     necessary to achieve all zeros in the columns under the redundant blocks.
     *)
-    export removeRedundantBlocks :: static := proc(P :: PMatrix)
+    export removeErasableBlocks :: static := proc(P :: PMatrix)
         local redundantIndices;
         redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
         # If there is a redundant block and we still have more than two blocks, remove it.
         if nops(redundantIndices) > 0 and P:-r > 2 then
             # Recursive call
-            return removeRedundantBlocks(removeSingleRedundantBlock(P, redundantIndices[1]));
+            return removeErasableBlocks(removeSingleRedundantBlock(P, redundantIndices[1]));
         else
             return P;
         end if;
@@ -805,8 +805,8 @@ module PMatrix()
         local Ps, P, i, P1, P2, P11, P12, a0, admOps, resultOps, a, rowOp;
 
         # First, remove any redundant blocks.
-        P1 := removeRedundantBlocks(P1_);
-        P2 := removeRedundantBlocks(P2_);
+        P1 := removeErasableBlocks(P1_);
+        P2 := removeErasableBlocks(P2_);
 
         # After removing redundant blocks, the number of blocks must coincide.
         if P1:-r <> P2:-r then

@@ -581,14 +581,14 @@ module ComplexityOneVariety()
         return ComplexityOneVariety(newP, newSigma);
     end proc;
 
-    export removeRedundantBlocks :: static := proc(X :: ComplexityOneVariety)
+    export removeErasableBlocks :: static := proc(X :: ComplexityOneVariety)
         local P, redundantIndices;
         P := X:-P;
         redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
         # If there is a redundant block and we still have more than two blocks, remove it.
         if nops(redundantIndices) > 0 and P:-r > 2 then
             # Recursive call
-            return removeRedundantBlocks(removeSingleRedundantBlock(X, redundantIndices[1]));
+            return removeErasableBlocks(removeSingleRedundantBlock(X, redundantIndices[1]));
         else
             return X;
         end if;
@@ -640,8 +640,8 @@ module ComplexityOneVariety()
 
     export areIsomorphicOperation :: static := proc(X1_ :: ComplexityOneVariety, X2_ :: ComplexityOneVariety)
         local X1, X2, a, newX1, coefficientOp;
-        X1 := removeRedundantBlocks(X1_);
-        X2 := removeRedundantBlocks(X2_);
+        X1 := removeErasableBlocks(X1_);
+        X2 := removeErasableBlocks(X2_);
 
         for a in PMatrix[areEquivalentOperations](X1:-P, X2:-P) do
             newX1 := applyAdmissibleOperation(X1, a);
