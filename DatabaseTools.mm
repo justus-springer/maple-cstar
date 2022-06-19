@@ -1,6 +1,6 @@
 
 ImportComplexityOneVarietyList := proc(stmt)
-    local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_PICARDNUMBER, INDEX_CLASSGROUP, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
+    local columns, INDEX_S, INDEX_P, INDEX_DIMENSION, INDEX_CLASSGROUP, INDEX_DEGREEMATRIX, INDEX_ANTICANCLASS, INDEX_AMBIENTFAN, INDEX_MAXIMALXCONES, INDEX_GORENSTEININDEX, INDEX_ISGORENSTEIN;
     local i, clm, result, P, X;
 
     columns := ColumnNames(stmt);
@@ -12,8 +12,6 @@ ImportComplexityOneVarietyList := proc(stmt)
             INDEX_P := i;
         elif clm = "dimension" then
             INDEX_DIMENSION := i;
-        elif clm = "classGroupRank" then
-            INDEX_PICARDNUMBER := i;
         elif clm = "classGroup" then
             INDEX_CLASSGROUP := i;
         elif clm = "degreeMatrix" then
@@ -43,17 +41,14 @@ ImportComplexityOneVarietyList := proc(stmt)
     while Step(stmt) = RESULT_ROW do
         P := PMatrix(Fetch(stmt, INDEX_S), Matrix(parse(Fetch(stmt, INDEX_P))), 'skipChecks');
         # Read in any already avaliable metadata about P, if available
-        if type(INDEX_PICARDNUMBER, integer) then
-            setPicardNumber(P, Fetch(stmt, INDEX_PICARDNUMBER));
-            if type(INDEX_CLASSGROUP, integer) then
-                setClassGroup(P, parse(Fetch(stmt, INDEX_CLASSGROUP)));
-            end if;
+        if type(INDEX_CLASSGROUP, integer) then
+            setClassGroup(P, parse(Fetch(stmt, INDEX_CLASSGROUP)));
         end if;
         if type(INDEX_ANTICANCLASS, integer) then
             setAnticanonicalClass(P, Vector(parse(Fetch(stmt, INDEX_ANTICANCLASS))));
         end if;
         if type(INDEX_DEGREEMATRIX, integer) then
-            setQ(P, Matrix(parse(Fetch(stmt, INDEX_DEGREEMATRIX))));
+            setDegreeMatrix(P, Matrix(parse(Fetch(stmt, INDEX_DEGREEMATRIX))));
         end if;
 
         # If a fan is supplied, make a ComplexityOneVariety.
@@ -132,7 +127,7 @@ ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: li
         # Can be disabled by the 'noChecks' option
         if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = [] then
             P := X:-P;
-            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
             Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
             Bind(stmt, 3, P:-n, valuetype = "integer");
@@ -162,7 +157,16 @@ ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: li
             Bind(stmt, 27, convert(getAnticanonicalSelfIntersection(X), hfloat), valuetype = "float");
             Bind(stmt, 28, isToric(P), valuetype = "integer");
             Bind(stmt, 29, isIrredundant(P), valuetype = "integer");
-
+            Bind(stmt, 30, isQfactorial(X), valuetype = "integer");
+            Bind(stmt, 31, isFactorial(X), valuetype = "integer");
+            Bind(stmt, 32, convert(getLocalPicardIndices(X), string), valuetype = "text");
+            Bind(stmt, 33, getPicardIndex(X), valuetype = "integer");
+            Bind(stmt, 34, isQgorenstein(X), valuetype = "integer");
+            Bind(stmt, 35, convert(getLocalGorensteinIndices(X), string), valuetype = "text");
+            Bind(stmt, 36, convert(getLocalGorensteinQuotients(X), string), valuetype = "text");
+            Bind(stmt, 37, getGorensteinQuotient(X), valuetype = "integer");
+            Bind(stmt, 38, X:-P:-case, valuetype = "text");
+            Bind(stmt, 39, X:-P:-orientation, valuetype = "integer");
 
             Step(stmt);
             Finalize(stmt);
@@ -185,6 +189,54 @@ ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: li
         end if;
     end if;
     
+end proc;
+
+UpdateInDatabase := proc(connection, tableName :: string, rowid :: integer, X :: ComplexityOneVariety)
+    local P, stmt;
+    P := X:-P;    
+    stmt := cat("UPDATE ", tableName, " SET ",
+        "r = ", P:-r, ", ",
+        "ns = \"", P:-ns, "\", ",
+        "n = ", P:-n, ", ",
+        "m = ", P:-m, ", ",
+        "s = ", P:-s, ", ",
+        "lss = \"", P:-lss, "\", ",
+        "P = \"", convert(P:-mat, list, nested), "\", ",
+        "dimension = ", P:-dim, ", ",
+        "classGroupRank = ", P:-classGroupRank, ", ",
+        "classGroup = \"", getClassGroup(P), "\", ",
+        "degreeMatrix = \"", convert(getDegreeMatrix(P), list, nested), "\", ",
+        "anticanClass = \"", convert(getAnticanonicalClass(P), list), "\", ",
+        "ambientFan = \"", X:-Sigma, "\", ",
+        "maximalXCones = \"", getMaximalXCones(X), "\", ",
+        "gorensteinIndex = ", getGorensteinIndex(X), ", ",
+        "isGorenstein = ", if isGorenstein(X) then 1 else 0 end if, ", ",
+        "orderedLss = \"", sortColumnsByLss(P):-lss, "\", ",
+        "effectiveCone = \"", rays(getEffectiveCone(P)), "\", ",
+        "movingCone = \"", rays(getMovingCone(P)), "\", ",
+        "ampleCone = \"", rays(getAmpleCone(X)), "\", ",
+        "isFano = ", if isFano(X) then 1 else 0 end if, ", ",
+        "variables = \"", X:-variables, "\", ",
+        "monomials = \"", X:-monomials, "\", ",
+        "relations = \"", X:-relations, "\", ",
+        "intersectionTable = \"", convert(map(x -> [numer(x), denom(x)], getIntersectionTable(X)), list, nested), "\", ",
+        "anticanonicalSelfIntersectionFraction = \"", [numer(getAnticanonicalSelfIntersection(X)), denom(getAnticanonicalSelfIntersection(X))], "\", ",
+        "anticanonicalSelfIntersectionFloat = ", convert(getAnticanonicalSelfIntersection(X), hfloat), ", ",
+        "isToric = ", if isToric(P) then 1 else 0 end if, ", ",
+        "isIrredundant = ", if isIrredundant(P) then 1 else 0 end if, ", ",
+        "isQfactorial = ", if isQfactorial(X) then 1 else 0 end if, ", ",
+        "isFactorial = ", if isFactorial(X) then 1 else 0 end if, ", ",
+        "localPicardIndices = \"", getLocalPicardIndices(X), "\", ",
+        "picardIndex = ", getPicardIndex(X), ", ",
+        "isQgorenstein = ", if isQgorenstein(X) then 1 else 0 end if, ", ",
+        "localGorensteinIndices = \"", getLocalGorensteinIndices(X), "\", ",
+        "localGorensteinQuotients = \"", getLocalGorensteinQuotients(X), "\", ",
+        "gorensteinQuotient = ", getGorensteinQuotient(X), ", ",
+        "case_ = \"", P:-case, "\", ",
+        "orientation = ", P:-orientation, " ",
+        "WHERE rowid = ", rowid
+        );
+    Execute(db, stmt);
 end proc;
 
 (*
