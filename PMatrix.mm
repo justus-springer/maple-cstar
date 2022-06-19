@@ -70,20 +70,21 @@ module PMatrix()
     export maximumSlopes := undefined;
     export minimumSlopes := undefined;
 
-    # The sum of the maximum resp. minimum slopes
+    # The sum of the maximum resp. negative sum of minimum slopes
     export mplus := undefined;
     export mminus := undefined;
 
+    # The sum of floors of maximum slopes resp. negative sum of ceils of minimum slopes
     export mplusFloor := undefined;
     export mminusCeil := undefined;
 
     export betasPlus := undefined;
+    export sortedBetasPlus := undefined;
     export betasMinus := undefined;
+    export sortedBetasMinus := undefined;
 
     # The orientation of the P-Matrix. It is either +1, -1 or 0.
     export orientation := undefined;
-
-    export magicInvariant := undefined;
 
     local setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
@@ -102,13 +103,14 @@ module PMatrix()
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
         self:-mplus := add(self:-maximumSlopes);
-        self:-mminus := add(self:-minimumSlopes);
+        self:-mminus := -add(self:-minimumSlopes);
         self:-mplusFloor := add(map(floor, self:-maximumSlopes));
-        self:-mminusCeil := add(map(ceil, self:-minimumSlopes));
+        self:-mminusCeil := -add(map(ceil, self:-minimumSlopes));
         self:-betasPlus := [seq([seq(self:-slopes[i,j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
-        self:-betasMinus := [seq([seq(self:-slopes[i,j] - ceil(self:-minimumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
-        self:-magicInvariant := [sortLex([self:-mplus, -self:-mminus]), sortLex([self:-betasPlus, -self:-betasMinus])];
-        
+        self:-sortedBetasPlus := sortLex(self:-betasPlus);
+        self:-betasMinus := [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-sortedBetasMinus := sortLex(self:-betasMinus);
+
         # Set the case
         if self:-m = 0 then
             self:-case := "EE";
@@ -124,14 +126,14 @@ module PMatrix()
 
         # Set the orientation
         if self:-case = "EE" or self:-case = "PP" then
-            if self:-mplus > - self:-mminus then
+            if self:-mplus > self:-mminus then
                 self:-orientation := 1;
-            elif self:-mplus < -self:-mminus then
+            elif self:-mplus < self:-mminus then
                 self:-orientation := -1;
             else
-                if sortLexComparison(sortLex(self:-betasPlus), sortLex(-self:-betasMinus)) then
+                if sortLexComparison(sortLex(self:-betasPlus), sortLex(self:-betasMinus)) then
                     self:-orientation := 1;
-                elif sortLexComparison(sortLex(-self:-betasMinus), sortLex(self:-betasPlus)) then
+                elif sortLexComparison(sortLex(self:-betasMinus), sortLex(self:-betasPlus)) then
                     self:-orientation := -1;
                 else
                     self:-orientation := 0;
@@ -839,14 +841,19 @@ module PMatrix()
 
     end proc;
 
+    (*
+    Determines if two P-Matrices `P1` and `P2` are equivalent by admissible operations.
+    *)
     export areEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
         if P1:-s = 1 and P2:-s = 1 then
-            # If we are in the surface case, the magic invariant is all we need
-            return evalb(P1:-magicInvariant = P2:-magicInvariant);
+            # Surface case - See theorem (???) of Msc thesis
+            (P1:-case = P2:-case and P1:-mplusFloor = P2:-mplusFloor and P1:-mminusCeil = P2:-mminusCeil and
+                P1:-sortedBetasPlus = P2:-sortedBetasPlus and P1:-sortedBetasMinus = P2:-sortedBetasMinus) or
+            (P1:-case = swapCase(P2:-case) and P1:-mplusFloor = P2:-mminusCeil and P1:-mminusCeil = P2:-mplusFloor and
+                P1:-sortedBetasPlus = P2:-sortedBetasMinus and P1:-sortedBetasMinus = P2:-sortedBetasPlus);
         end if;
-        # In general, we need to to the hard work of determining all admissible operations
-        # turning P1 into P2.
-        return areEquivalentOperations(P1, P2) <> [];
+        # General case
+        evalb(areEquivalentOperations(P1, P2) <> []);
     end proc;
 
     (*
@@ -854,7 +861,7 @@ module PMatrix()
     *)
     export normalForm :: static := proc(P :: PMatrix)
         if P:-orientation = -1 then
-            PMatrix(- P:-mminusCeil, sortLex(- P:-betasMinus), P:-case);
+            PMatrix(P:-mminusCeil, sortLex(P:-betasMinus), swapCase(P:-case));
         else
             PMatrix(P:-mplusFloor, sortLex(P:-betasPlus), P:-case);
         end if;

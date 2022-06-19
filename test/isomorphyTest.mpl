@@ -1,8 +1,8 @@
-$include "../complexity_one.mpl"
+$include "../ComplexityOne.mpl"
 
 with(convex):
 with(LinearAlgebra):
-with(ComplexityOne):
+with(ComplexityOnePackage):
 with(CodeTools):
 
 # A list of irredundant KK^*-surfaces, all isomorphic to each other

@@ -2,6 +2,20 @@
 Some tools.
 *)
 
+swapCase := proc(c :: string)
+    if c = "EE" then
+        "EE";
+    elif c = "PE" then
+        "EP";
+    elif c = "EP" then
+        "PE";
+    elif c = "PP" then
+        "PP";
+    else
+        error "swapCase only accepts one of the four strings \"EE\", \"PE\", \"EP\" and \"PP\"";
+    end if;
+end proc;
+
 applyPermToList := proc(p :: Perm, ls :: list)
     local i;
     return [seq(ls[(p^(-1))[i]], i = 1 .. nops(ls))];
