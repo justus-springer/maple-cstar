@@ -57,6 +57,13 @@ module ComplexityOneVariety()
     # This is equivalent to the gorenstein index being one.
     local isGorensteinVal := undefined;
 
+    # The local quotients of picard indices and gorenstein indices
+    local localGorensteinQuotients := undefined;
+
+    # The quotient of picard index and gorenstein index
+    local gorensteinQuotient := undefined;
+
+
     local ampleCone := undefined;
 
     local isFanoVal := undefined;
@@ -365,6 +372,29 @@ module ComplexityOneVariety()
         return self:-isQgorensteinVal;
     end proc;
 
+    export setLocalGorenstienQuotients :: static := proc(self :: ComplexityOneVariety, localGorensteinQuotients)
+        self:-localGorensteinQuotients := localGorensteinQuotients;
+    end proc;
+
+    export getLocalGorensteinQuotients :: static := proc(self :: ComplexityOneVariety)
+        if type(self:-localGorensteinQuotients, undefined) or 'forceCompute' in [_passed] then
+            setLocalGorenstienQuotients(self, zip((x,y) -> x / y, getLocalPicardIndices(self), getLocalGorensteinIndices(self)));
+        end if;
+        return self:-localGorensteinQuotients;
+    end proc;
+
+    export setGorensteinQuotient :: static := proc(self :: ComplexityOneVariety, gorensteinQuotient)
+        self:-gorensteinQuotient := gorensteinQuotient;
+    end proc;
+
+    export getGorensteinQuotient :: static := proc(self :: ComplexityOneVariety)
+        local cone;
+        if type(self:-gorensteinQuotient, undefined) or 'forceCompute' in [_passed] then
+            setGorensteinQuotient(self, lcm(op(getLocalGorensteinQuotients(self))));
+        end if;
+        return self:-gorensteinQuotient;
+    end proc;
+
     export setAmpleCone :: static := proc(self :: ComplexityOneVariety, ampleCone :: CONE) self:-ampleCone := ampleCone; end proc;
 
     export getAmpleCone :: static := proc(self :: ComplexityOneVariety)
@@ -415,7 +445,8 @@ module ComplexityOneVariety()
                 end if;
                 if P:-case = "EE" or P:-case = "PE" then
                     # There is an elliptic fixed point x^-
-                    newM[P:-ns[i]] := 1 / P:-mminus;
+                    # (Different from printed formula, since our mminus is negated)
+                    newM[P:-ns[i]] := - 1 / P:-mminus;
                 end if;
 
                 for j from 1 to P:-ns[i] - 1 do
@@ -532,7 +563,8 @@ module ComplexityOneVariety()
                 end do;
 
                 # Self intersection of D^-
-                res[kminus, kminus] := P:-mminus;
+                # (Different from printed formula since out mminus is negated)
+                res[kminus, kminus] := - P:-mminus;
 
             end if;
 
