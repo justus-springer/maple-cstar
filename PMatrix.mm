@@ -58,11 +58,8 @@ module PMatrix()
     ###########################################################################
 
     # The case of the P-Matrix, i.e. its configuration of elliptic fixed points (E) 
-    # vs. parabolic fixed point curves (P). It is exactly one of the fixe strings:
-    #                     "EE", "PE", "EP", "PP+", "PP-".
-    # The naming follows the literature, e.g. Cox Rings chapter 5.4.1, except that we
-    # additionally differentiate between "PP+" and "PP-". The former has [0...1],[0...-1] as
-    # last two columns, the latter has [0...-1],[0...1].
+    # vs. parabolic fixed point curves (P). It is exactly one of the four strings:
+    #                     "EE", "PE", "EP", "PP".
     export case := undefined;
 
     # The slopes of the rays in the fan. This is encoded as a list of lists, following the
@@ -112,13 +109,26 @@ module PMatrix()
         self:-betasMinus := [seq([seq(self:-slopes[i,j] - ceil(self:-minimumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
         self:-magicInvariant := [sortLex([self:-mplus, -self:-mminus]), sortLex([self:-betasPlus, -self:-betasMinus])];
         
+        # Set the case
         if self:-m = 0 then
             self:-case := "EE";
+        elif self:-m = 1 then
+            if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
+                self:-case := "PE";
+            elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
+                self:-case := "EP";
+            end if;
+        elif self:-m = 2 then
+            self:-case := "PP";
+        end if;
+
+        # Set the orientation
+        if self:-case = "EE" or self:-case = "PP" then
             if self:-mplus > - self:-mminus then
                 self:-orientation := 1;
             elif self:-mplus < -self:-mminus then
                 self:-orientation := -1;
-            else    
+            else
                 if sortLexComparison(sortLex(self:-betasPlus), sortLex(-self:-betasMinus)) then
                     self:-orientation := 1;
                 elif sortLexComparison(sortLex(-self:-betasMinus), sortLex(self:-betasPlus)) then
@@ -127,22 +137,10 @@ module PMatrix()
                     self:-orientation := 0;
                 end if;
             end if;
-        elif self:-m = 1 then
-            if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
-                self:-case := "PE";
-                self:-orientation := 1;
-            elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
-                self:-case := "EP";
-                self:-orientation := -1;
-            end if;
-        elif self:-m = 2 then
-            if d[1, doubleToSingleIndex(self:-format, -1, 1)] = 1 then
-                self:-case := "PP+";
-                self:-orientation := 1;
-            elif d[1, doubleToSingleIndex(self:-format, -1, 1)] = -1 then
-                self:-case := "PP-";
-                self:-orientation := -1;
-            end if;
+        elif self:-case = "PE" then
+            self:-orientation := 1;
+        elif self:-case = "EP" then
+            self:-orientation := -1;
         end if;
         
     end proc;
@@ -442,23 +440,19 @@ module PMatrix()
                 [[seq(self:-lss[1,j] * (betasPlus[1,j] + mplusFloor), j = 1 .. ns[1]),
                   seq(seq(self:-lss[i,j] * betasPlus[i,j], j = 1 .. ns[i]), i = 2 .. nops(ns))]]);
 
-            if case = "PE" then
+
+            if case = "EE" then
+                setFormat(self, PFormat(ns, 0, 1));
+            elif case = "PE" then
                 self:-d := <self:-d | 1>;
                 setFormat(self, PFormat(ns, 1, 1));
             elif case = "EP" then
                 self:-d := <self:-d | -1>;
                 setFormat(self, PFormat(ns, 1, 1));
-            elif case = "PP+" then
+            elif case = "PP" then
                 self:-d := <self:-d | 1 | -1>;
                 setFormat(self, PFormat(ns, 2, 1));
-            elif case = "PP-" then
-                self:-d := <self:-d | -1 | 1>;
-                setFormat(self, PFormat(ns, 2, 1));
-            elif case = "EE" then
-                setFormat(self, PFormat(ns, 0, 1));
-            else
-                error "The case must be one of the five strings: \"EE\", \"EP\", \"PE\", \"PP+\" and \"PP-\".";
-            end if; 
+            end if;
 
             P := PMatrix(self:-format, self:-lss, self:-d);
             self:-mat := P:-mat;

@@ -212,21 +212,22 @@ module ComplexityOneVariety()
                 if P:-case = "EE" then
                     self:-Sigma := {sigma_plus} union taus union {sigma_minus};
                 elif P:-case = "PE" then
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + 1} , i = 1 .. P:-r)};
                     self:-Sigma := taus_plus union taus union {sigma_minus};
                 elif P:-case = "EP" then
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + 1} , i = 1 .. P:-r)};
                     self:-Sigma := {sigma_plus} union taus union taus_minus;
-                elif P:-case = "PP+" then
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m - 1} , i = 1 .. P:-r)};
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m} , i = 1 .. P:-r)};
+                elif P:-case = "PP" then
+                    if P:-d[1, P:-n + 1] = 1 then
+                        vplus_index := P:-n + 1;
+                        vminus_index := P:-n + 2;
+                    elif P:-d[1, P:-n + 1] = -1 then
+                        vplus_index := P:-n + 2;
+                        vminus_index := P:-n + 1;
+                    end if;
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), vplus_index} , i = 1 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), vminus_index} , i = 1 .. P:-r)};
                     self:-Sigma := taus_plus union taus union taus_minus;
-                elif P:-case = "PP-" then
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + P:-m} , i = 1 .. P:-r)};
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + P:-m - 1} , i = 1 .. P:-r)};
-                    self:-Sigma := taus_plus union taus union taus_minus;
-                else
-                    error "Invalid case. P:-case should be one of the five strings: \"EE\", \"PE\", \"EP\", \"PP+\", \"PP-\"";
                 end if;
 
             elif P:-classGroupRank = 1 then
@@ -471,11 +472,11 @@ module ComplexityOneVariety()
                 ## There is a parabolic fixed point curce D^+ ##
                 ################################################
 
-                # kplus is the index of the divisor D^+. This depends on the case.
-                if P:-case = "PE" or P:-case = "PP+" then
-                    kplus := doubleToSingleIndex(P:-format, -1, 1);
-                elif P:-case = "PP-" then
-                    kplus := doubleToSingleIndex(P:-format, -1, 2);
+                # kplus is the index of the divisor D^+.
+                if P:-d[1, P:-n + 1] = 1 then
+                    kplus := P:-n + 1;
+                elif P:-d[1, P:-n + 1] = -1 then
+                    kplus := P:-n + 2;
                 end if;
 
                 # Intersection numbers of the highest rays of each block with D^+
@@ -515,11 +516,11 @@ module ComplexityOneVariety()
                 ## There is a parabolic fixed point curce D^- ##
                 ################################################
 
-                # kminus is the index of the divisor D^+. This depends on the case.
-                if P:-case = "EP" or P:-case = "PP-" then
-                    kminus := doubleToSingleIndex(P:-format, -1, 1);
-                elif P:-case = "PP+" then
-                    kminus := doubleToSingleIndex(P:-format, -1, 2);
+                # kminus is the index of the divisor D^-.
+                if P:-d[1, P:-n + 1] = -1 then
+                    kminus := P:-n + 1;
+                elif P:-d[1, P:-n + 1] = 1 then
+                    kminus := P:-n + 2;
                 end if;
 
                 # Intersection numbers of the highest rays of each block with D^-
