@@ -18,14 +18,14 @@ module PFormat()
         end do:
         if m < 0 then error "m must be at least 0." end if:
         if s < 0 then error "s must be at least 0." end if:
-        self:-r := nops(ns);
-        self:-ns := ns;
+        self:-r := nops(ns) - 1;
+        self:-ns := Array(0 .. self:-r, ns);
         self:-n := add(ns);
         self:-m := m;
         self:-s := s;
         self:-dim := s + 1;
         self:-numCols := self:-n + self:-m;
-        self:-numRows := self:-r - 1 + self:-s;
+        self:-numRows := self:-r + self:-s;
         self:-classGroupRank := self:-numCols - self:-numRows;
     end;
 
@@ -34,7 +34,7 @@ module PFormat()
 
     There are two different indexing techniques when it comes to labeling columns of a P-Matrix.
     The first one labels them according to the decomposition into leaf cones. Here, a
-    column from the L-Block is labeled by a pair (i,j), where 1 <= i <= r and 1 <= j <= ns[i].
+    column from the L-Block is labeled by a pair (i,j), where 0 <= i <= r and 1 <= j <= ns[i].
     A column from the d-block is labeled by a single number between 1 and m. However, it is
     sometimes useful to instead index all columns by a single number between 1 and n + m instead
     of the two-dimensional labeling. The following two functions translate one labeling to another.
@@ -43,7 +43,7 @@ module PFormat()
     *)
 
     (*
-    Translate a single index 1 <= k <= n into a two-dimensional index (i,j), where 1 <= i <= r
+    Translate a single index 1 <= k <= n into a two-dimensional index (i,j), where 0 <= i <= r
     and 1 <= j <= ns[i]. An index n+1 <= k <= n+m is mapped to (-1, k - n).
     See above for more explanation.
     *)
@@ -56,7 +56,7 @@ module PFormat()
         if k > self:-n then
             return -1, k - self:-n;
         end if;
-        i := 0;
+        i := -1;
         while k > 0 do
             i++;
             k -= self:-ns[i];
@@ -65,36 +65,34 @@ module PFormat()
     end proc:
 
     (*
-    Translate a two-dimensional index (i,j), where 1 <= i <= r and 1 <= j <= ns[i] into a single
+    Translate a two-dimensional index (i,j), where 0 <= i <= r and 1 <= j <= ns[i] into a single
     index 1 <= k <= n. A pair (-1, j) is mapped to the single index n + j.
     See above for more explanation.
     *)
     export doubleToSingleIndex :: static := proc(self :: PFormat, i :: integer, j :: integer)
+        if i < -1 or i > self:-r then
+            error "index out of range: i must range betweem -1 and r = %1. Given: %2.", self:-r, i;
+        end if;
         if i = -1 then
             if j < 1 or j > self:-m then
                 error "index out of range: i = -1, hence j must be between 1 and m = %1. Given: %2", self:-m, j;
             end if;
             return self:-n + j;
         end if;
-        if i < 1 or i > self:-r then
-            error "index out of range: i must either be -1 or between 1 and r = %1. Given: %2.", self:-r, i;
-        end if;
         if j < 1 or j > self:-ns[i] then
             error "index out of range: j must be between 1 and ns[%1] = %2. Given: %3.", i, self:-ns[i], j;
         end if;
-        return add(self:-ns[1 .. i-1]) + j
+        return add(self:-ns[0 .. i-1]) + j
     end proc:
 
     (*
     Checks whether a given `cone` is big with respect to a given PFormat.
-    Here, a cone is called big if for every i = 0,...,r-1, we have
-    {N, ..., N+ns[i+1]} ∩ cone ≠ {}, where N = ns[1] + ... + ns[i].
     *)
     export isBigCone :: static := proc(self :: PFormat, cone :: set(integer))
-        local N, i, k:
-        for i from 0 to self:-r - 1 do
-            N := add(self:-ns[1..i]);
-            if evalb({seq(N + k, k = 1 .. self:-ns[i+1])} intersect cone = { }) then
+        local N, i, k, leaf:
+        for i from 0 to self:-r do
+            leaf := map(ij -> doubleToSingleIndex(self, op(ij)), {seq([i, j], j = 1 .. self:-ns[i])});
+            if evalb(leaf intersect cone = { }) then
                 return false:
             end if:
         end do:
@@ -102,17 +100,14 @@ module PFormat()
     end proc:
 
     (*
-    Checks whether a given `cone` is big with respect to a given PFormat.
-    Here, a cone is called a leaf cone, if there exists an i = 0,...,r-1 such that:
-    xcone ⊆ {N+1, ..., N+ns[i+1]} ∪ {n+1,...,n+m},
-    where N = ns[1] + ... + ns[i]
+    Checks whether a given `cone` is leaf with respect to a given PFormat.
     *)
     export isLeafCone :: static := proc(self :: PFormat, cone :: set(integer))
-        local N, i, k:
-        for i from 0 to self:-r - 1 do
-            N := add(self:-ns[1..i]);
-            if cone subset ({seq(N + k, k = 1 .. self:-ns[i+1])} union
-                {seq(self:-n + k, k = 1 .. self:-m)}) then
+        local N, i, k, leaf:
+        for i from 0 to self:-r do
+            leaf := map(ij -> doubleToSingleIndex(self, op(ij)), {seq([i, j], j = 1 .. self:-ns[i])}) 
+                union {seq(self:-n + k, k = 1 .. self:-m)};
+            if cone subset leaf then
                 return true:
             end if:
         end do:
@@ -131,7 +126,7 @@ module PFormat()
     Given a list of cones, compute the list X-cones which are maximal with respect to a given PFormat.
     *)
     export getMaximalXConesFormat :: static := proc(self :: PFormat, cones :: set(set(integer)))
-        local bigCones, nonBigCones, leafCones, leafCone, cone, maxLeafCones, c1, c2, isMaximal, N, i, k;
+        local bigCones, nonBigCones, leafCones, leaf, cone, maxLeafCones, c1, c2, isMaximal, N, i, k;
         # First, we compute the big cones. Note that these are neccessarily maximal and there can
         # be no other maximal big cones.
         bigCones := select(c -> isBigCone(self, c), cones);
@@ -139,10 +134,10 @@ module PFormat()
         # For each of the remaining cones, we compute all the maximal leaf cones it contains.
         leafCones := {};
         nonBigCones := cones minus bigCones;
-        for i from 0 to self:-r - 1 do
-            N := add(self:-ns[1..i]);
-            leafCone := {seq(N + k, k = 1 .. self:-ns[i+1])} union {seq(self:-n + k, k = 1 .. self:-m)};
-            leafCones := leafCones union map(c -> c intersect leafCone, nonBigCones);
+        for i from 0 to self:-r do
+            leaf := map(ij -> doubleToSingleIndex(self, op(ij)), {seq([i, j], j = 1 .. self:-ns[i])}) 
+                union {seq(self:-n + k, k = 1 .. self:-m)};
+            leafCones := leafCones union map(c -> c intersect leaf, nonBigCones);
         end do;
         # Remove the ones that are non-maximal
         maxLeafCones := {};
@@ -165,11 +160,11 @@ module PFormat()
         if (_npassed <> 2 or not l::PFormat or not r::PFormat) then
            return false;
         end;
-        return l:-ns = r:-ns and l:-m = r:-m and l:-s = r:-s;
+        return EqualEntries(l:-ns, r:-ns) and l:-m = r:-m and l:-s = r:-s;
     end;
 
     export ModulePrint :: static := proc(self :: PFormat)
-        nprintf(cat("PFormat(", self:-ns, ", m = ", self:-m, ", s = ", self:-s, ")"));
+        nprintf(cat("PFormat(", convert(self:-ns, list), ", m = ", self:-m, ", s = ", self:-s, ")"));
     end;
 
 end module:
