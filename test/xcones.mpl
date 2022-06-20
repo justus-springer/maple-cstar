@@ -4,7 +4,7 @@ Some tests for `isBigCone` and `isLeafCone`
 
 $include "../complexity_one.mpl"
 
-with(ComplexityOne):
+with(ComplexityOnePackage):
 with(CodeTools):
 
 f1 := PFormat([2,1,1], 1, 1):
@@ -35,3 +35,6 @@ Test(isLeafCone(f2, {1,3,9,10}), true, label = "isLeafCone-5");
 Test(isLeafCone(f2, {8,9}), true, label = "isLeafCone-6");
 Test(isLeafCone(f2, {1,4,9,10}), false, label = "isLeafCone-7");
 Test(isLeafCone(f2, {7,8,9,10}), false, label = "isLeafCone-8");
+
+Sigma := {{1, 2, 3, 4}, {1, 2, 3, 5}, {1, 2, 4, 5}, {1, 3, 4, 5}, {2, 3, 4, 5}};
+Test(getMaximalXConesFormat(f1, Sigma), {{1, 2, 5}, {1, 2, 3, 4}, {1, 3, 4, 5}, {2, 3, 4, 5}}, label = "getMaximalXCones-1");
