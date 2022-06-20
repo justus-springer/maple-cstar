@@ -13,6 +13,7 @@ export
     ImportComplexityOneVarietyList, 
     ImportComplexityOneVariety, 
     ExportComplexityOneVarietyList, 
+    UpdateInDatabase,
     performOnDatabase;
 
 local
