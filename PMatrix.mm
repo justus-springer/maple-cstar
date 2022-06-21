@@ -343,7 +343,7 @@ module PMatrix()
                 # an integer multiple of e_i (i-th canonical basis vector)
                 while true do
                     # For array safety, we need this extra clause
-                    if n > ColumnDimension(P0) or then
+                    if n > ColumnDimension(P0) then
                         break;
                     end if;
                     col := Column(P0, n);
@@ -388,8 +388,6 @@ module PMatrix()
             end if;
 
             self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
-            
-            print(self:-d, self:-lss);
 
             # If this a P-Matrix of a surface, compute the slopes
             if self:-s = 1 then
