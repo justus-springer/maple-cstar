@@ -347,15 +347,11 @@ module PMatrix()
                         break;
                     end if;
                     col := Column(P0, n);
-                    # In this case, we have reached the last `m` columns.
-                    if Equal(col, Vector(r, fill = 0)) then
-                        break;
-                    end if;
 
                     # Try to solve the equation col = l * e_i for l
                     sol := solve({seq(col[j] = l * canonicalBasisVector(r,i)[j], j = 1 .. r)}, l);
                     
-                    if sol = NULL then
+                    if sol = NULL or rhs(sol[1]) <= 0 then
                         # If this is the first column in the i-th block, we fail.
                         if ns[i] = 0 then
                             error "This matrix is not in P-shape. The %1-th column is faulty.", n;
@@ -506,7 +502,7 @@ module PMatrix()
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
         if type(self:-anitcanCoefficients, undefined) or 'forceCompute' in [_passed] then
             setAnticanCoefficients(self,
-                [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]);
+                [1 $ self:-numCols] - (self:-r - 1) * [op(self:-lss[0]), 0 $ self:-n + self:-m - self:-ns[0]]);
         end if;
         return self:-anitcanCoefficients;
     end;
@@ -515,7 +511,7 @@ module PMatrix()
         local as, i, anticanVec, d;
         if type(self:-anticanonicalClass, undefined) or 'forceCompute' in [_passed] then
             as := getAnticanCoefficients(self);
-            anticanVec := add(seq(as[i] * Column(getDegreeMatrix(self), i), i = 1 .. self:-n + self:-m));
+            anticanVec := add(seq(as[i] * Column(getDegreeMatrix(self), i), i = 1 .. self:-numCols));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
             # We normalize these entries, so that each of them is less than `d`.
             for i from 1 to nops(getClassGroup(self)) - 1 do
@@ -528,7 +524,7 @@ module PMatrix()
 
     export localCartierIndex :: static := proc(self :: PMatrix, cone :: set(integer), D :: list(integer))
         local us, sol;
-        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        us := [seq(u[i], i = 1 .. self:-numRows)];
         sol := solve({seq(DotProduct(us, Column(self:-mat, j)) = D[j], j in cone)});
         if sol = NULL then
             return infinity;
@@ -554,19 +550,19 @@ module PMatrix()
     Computes the local class group of the variety associated to a P-Matrix.
     *)
     export getLocalClassGroup :: static := proc(self :: PMatrix, cone :: set(integer))
-        imageFactorGroup(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)])));
+        imageFactorGroup(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-numCols)} minus cone)])));
     end proc;
 
     (*
     Computes the local picard index of a given X-cone.
     *)
     export localPicardIndex :: static := proc(self :: PMatrix, cone :: set(integer))
-        indexOfImage(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)])));
+        indexOfImage(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-numCols)} minus cone)])));
     end proc;
 
     export getEffectiveCone :: static := proc(self :: PMatrix)
         if type(self:-effectiveCone, undefined) or 'forceCompute' in [_passed] then
-            setEffectiveCone(self, poshull(Column(getDegreeMatrixFree(self), [seq(1 .. self:-n + self:-m)])));
+            setEffectiveCone(self, poshull(Column(getDegreeMatrixFree(self), [seq(1 .. self:-numCols)])));
         end if;
         return self:-effectiveCone;
     end proc;
@@ -599,7 +595,7 @@ module PMatrix()
 
     export isToric :: static := proc(P :: PMatrix)
         if type(P:-isToricVal, undefined) or 'forceCompute' in [_passed] then
-            setIsToricVal(P, evalb(removeErasableBlocks(P):-r = 2));
+            setIsToricVal(P, evalb(removeErasableBlocks(P):-r = 1));
         end if;
         return P:-isToricVal;
     end proc;
@@ -607,8 +603,8 @@ module PMatrix()
     export isIrredundant :: static := proc(P :: PMatrix)
         local redundantIndices;
         if type(P:-isIrredundantVal, undefined) or 'forceCompute' in [_passed] then
-            redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
-            setIsIrredundantVal(P, evalb(P:-r = 2 or redundantIndices = []));
+            redundantIndices := select(i -> P:-lss[i] = [1], [seq(0 .. P:-r)]);
+            setIsIrredundantVal(P, evalb(P:-r = 1 or redundantIndices = []));
         end if;
         return P:-isIrredundantVal;        
     end proc;
