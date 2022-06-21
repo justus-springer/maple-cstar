@@ -120,7 +120,7 @@ module AdmissibleOperation()
     end proc;
 
     export FromSingleTau :: static := proc(formatFrom, i :: integer, tau :: Perm)
-        AdmissibleOperation[FromTaus](formatFrom, [Perm([]) $ i, tau, Perm([]) $ formatFrom:-r + 1 - i]);
+        AdmissibleOperation[FromTaus](formatFrom, [Perm([]) $ i, tau, Perm([]) $ formatFrom:-r - i]);
     end proc;
 
     export FromRho :: static := proc(formatFrom, rho :: Perm)

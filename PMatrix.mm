@@ -672,11 +672,11 @@ module PMatrix()
 
         # Sort each individual block
         taus := [];
-        for i from 1 to P:-r do
+        for i from 0 to P:-r do
             tau := Perm(sort([seq(1 .. P:-ns[i])], (j1, j2) -> P:-lss[i][j1] > P:-lss[i][j2], 'output' = 'permutation'))^(-1);
             taus := [op(taus), tau];
         end do;
-        newLss := map(i -> applyPermToList(taus[i], P:-lss[i]), [seq(1 .. P:-r)]);
+        newLss := Array(0..P:-r, map(i -> applyPermToList(taus[i+1], P:-lss[i]), [seq(0 .. P:-r)]));
 
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block of index `i1` should occur before the block of index `i2`.
@@ -693,7 +693,7 @@ module PMatrix()
                 return true;
             end if;
         end proc;
-        sigma := Perm(sort([seq(1 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
+        sigma := Perm(sort([seq(0 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
         
         return AdmissibleOperation[FromPermutations](P:-format, sigma, taus, Perm([]));
 
@@ -709,19 +709,19 @@ module PMatrix()
 
     (*
     Checks whether two P-Matrices `P1` and `P2` are equivalent to each other by admissible row operations.
-    You can obtain the admissible row operation turning `P1` into `P2` by supplying the parameter `'output' = out`,
-    where `out` is a list of the names 'result', 'C', 'T' and 'S'.
+    If they are equivalent, this procedure outputs the admissible operations turning P1 into P2.
+    If they are not equivalent, it returns false.
     *)
     export areRowEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
         local resBool, resOperation, identityMatrix, zeroMatrix, C, T, S, newP, sol, resultList, str, i, j;
 
-        identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
-        zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
-        C := Matrix(P1:-s, P1:-r - 1, symbol = 'x');
+        identityMatrix := Matrix(P1:-r, P1:-r, shape = diagonal, 1);
+        zeroMatrix := Matrix(P1:-r, P1:-s, fill = 0);
+        C := Matrix(P1:-s, P1:-r, symbol = 'x');
         T := Matrix(P1:-s, P1:-s, symbol = 'y');
         S := <<identityMatrix | zeroMatrix>, <C | T>>;
         newP := S . P1:-mat;
-        sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
+        sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r + 1 .. RowDimension(P1:-mat))});
         
         if sol <> NULL and abs(Determinant(subs(sol, T))) = 1 then
             return AdmissibleOperation[FromRowOperation](P1:-format, subs(sol, C), subs(sol, T));             
@@ -742,9 +742,9 @@ module PMatrix()
         a0 := sortColumnsByLssOperation(P0);
         P := sortColumnsByLss(P0);
 
-        admOps := map(sigma -> AdmissibleOperation[FromSigma](P:-format, sigma), invariantPermutations(P:-lss));
+        admOps := map(sigma -> AdmissibleOperation[FromSigma](P:-format, sigma), invariantPermutations(:-convert(P:-lss, list)));
 
-        for i from 1 to P:-r do
+        for i from 0 to P:-r do
             taus := map(tau -> AdmissibleOperation[FromSingleTau](P:-format, i, tau), invariantPermutations(P:-lss[i]));
             admOps := map(a -> op(map(tau -> compose(a, tau), taus)), admOps);
         end do;
@@ -765,11 +765,11 @@ module PMatrix()
     export areEquivalentOperations :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
         local Ps, P, i, P1, P2, P11, P12, a0, admOps, resultOps, a, rowOp;
 
-        # First, remove any redundant blocks.
+        # First, remove any erasable blocks.
         P1 := removeErasableBlocks(P1_);
         P2 := removeErasableBlocks(P2_);
 
-        # After removing redundant blocks, the number of blocks must coincide.
+        # After removing erasable blocks, the number of blocks must coincide.
         if P1:-r <> P2:-r then
             return [];
         end if;
@@ -785,7 +785,7 @@ module PMatrix()
         
         # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
         # the P-Matrices can't be equivalent.
-        if applyAdmissibleOperation(P1, a0):-lss <> P2:-lss then
+        if not EqualEntries(applyAdmissibleOperation(P1, a0):-lss, P2:-lss) then
             return [];
         end if;
 
@@ -811,11 +811,11 @@ module PMatrix()
     *)
     export areEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
         if P1:-s = 1 and P2:-s = 1 then
-            # Surface case - See theorem (???) of Msc thesis
+            # Surface case - See theorem 3.5.4 of Msc thesis
             (P1:-case = P2:-case and P1:-mplusFloor = P2:-mplusFloor and P1:-mminusCeil = P2:-mminusCeil and
-                P1:-sortedBetasPlus = P2:-sortedBetasPlus and P1:-sortedBetasMinus = P2:-sortedBetasMinus) or
+                EqualEntries(P1:-sortedBetasPlus, P2:-sortedBetasPlus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasMinus)) or
             (P1:-case = swapCase(P2:-case) and P1:-mplusFloor = P2:-mminusCeil and P1:-mminusCeil = P2:-mplusFloor and
-                P1:-sortedBetasPlus = P2:-sortedBetasMinus and P1:-sortedBetasMinus = P2:-sortedBetasPlus);
+                EqualEntries(P1:-sortedBetasPlus,P2:-sortedBetasMinus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasPlus));
         end if;
         # General case
         evalb(areEquivalentOperations(P1, P2) <> []);
@@ -844,7 +844,7 @@ module PMatrix()
     *)
     export convexConeToIntSetCone :: static := proc(P :: PMatrix, cone :: CONE)
         local cols;
-        cols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-n + P:-m)])]);
+        cols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-numCols)])]);
         return map(ray -> ListTools[Search](ray, cols), {op(rays(cone))});
     end proc;
 
@@ -855,7 +855,7 @@ module PMatrix()
     export PMatrixInfo :: static := proc(self :: PMatrix)
         local P, Q, n, m, classGroupRank, classGroup, anticanonicalClass, admitsFano, i;
         print(P = self:-mat);
-        print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
+        print([seq(cat(n,i), i = 0 .. self:-r), m] = [seq(self:-ns[i], i = 0 .. self:-r), self:-m]);
         print(Q = getDegreeMatrix(self));
         print(classGroup = getClassGroup(self));
         print(classGroupRank = self:-classGroupRank);
