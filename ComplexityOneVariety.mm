@@ -86,11 +86,11 @@ module ComplexityOneVariety()
         P := self:-P;
         f := P:-format;
         lss := P:-lss;
-        self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 1 .. f:-r), seq(S[i], i = 1 .. f:-m)];
-        self:-monomials := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 1 .. f:-r)];
+        self:-variables := [seq(seq(T[i,j], j = 1 .. f:-ns[i]), i = 0 .. f:-r), seq(S[i], i = 1 .. f:-m)];
+        self:-monomials := [seq(mul([seq(T[i,j] ^ lss[i][j], j = 1 .. f:-ns[i])]), i = 0 .. f:-r)];
 
         alpha := (i,j) -> Determinant(Matrix([Column(A, [i,j])]));
-        self:-relations := [seq(alpha(i+1,i+2) * self:-monomials[i] + alpha(i+2, i) * self:-monomials[i+1] + alpha(i, i+1) * self:-monomials[i+2], i = 1 .. f:-r - 2)];
+        self:-relations := [seq(alpha(i+1,i+2) * self:-monomials[i] + alpha(i+2, i) * self:-monomials[i+1] + alpha(i, i+1) * self:-monomials[i+2], i = 1 .. f:-r - 1)];
     end proc;
 
     (*
@@ -131,11 +131,11 @@ module ComplexityOneVariety()
             if type(_passed[4], Matrix) then
                 # No Sigma provided, coefficient Matrix is fourth argument.
                 A := _passed[4];
-                if RowDimension(A) <> 2 or ColumnDimension(A) <> P:-r then
+                if RowDimension(A) <> 2 or ColumnDimension(A) <> P:-r + 1 then
                     error "The coefficient matrix must be a (2 x r)-Matrix. Here, r = %1", P:-r;
                 end if;
-                for i from 1 to P:-r do
-                    for j from i+1 to P:-r do
+                for i from 1 to P:-r + 1 do
+                    for j from i+1 to P:-r + 1 do
                         if Determinant(Matrix([Column(A, [i,j])])) = 0 then
                             error "The columns of the coefficient matrix must be linearly independent. Here the %1-th and the %2-th columns are linearly dependent.", i, j;
                         end if;
@@ -174,11 +174,11 @@ module ComplexityOneVariety()
             if _npassed > 4 then
                 if type(_passed[5], Matrix) then
                     A := _passed[5];
-                    if RowDimension(A) <> 2 or ColumnDimension(A) <> P:-r then
+                    if RowDimension(A) <> 2 or ColumnDimension(A) <> P:-r + 1 then
                         error "The coefficient matrix must be a (2 x r)-Matrix. Here, r = %1", P:-r;
                     end if;
-                    for i from 1 to P:-r do
-                        for j from i+1 to P:-r do
+                    for i from 1 to P:-r + 1 do
+                        for j from i+1 to P:-r + 1 do
                             if Determinant(Matrix([Column(A, [i,j])])) = 0 then
                                 error "The columns of the coefficient matrix must be linearly independent. Here the %1-th and the %2-th columns are linearly dependent.", i, j;
                             end if;
@@ -204,25 +204,25 @@ module ComplexityOneVariety()
                 # possible fan for the P-Matrix. We can write it down explicitly, following Construction 5.4.1.6 of "Cox Rings".
                 # Note that we do not require the P-Matrix to be slope-ordered.
                 
-                ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
-                    (j1, j2) -> P:-slopes[i, j1] > P:-slopes[i, j2]), 
-                    i = 1 .. P:-r)];
+                ordered_indices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
+                    (j1, j2) -> P:-slopes[i][j1] > P:-slopes[i][j2]), 
+                    i = 0 .. P:-r)]);
                 
-                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), i = 1 .. P:-r)};
-                sigma_minus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]) , i = 1 .. P:-r)};
+                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i][1]), i = 0 .. P:-r)};
+                sigma_minus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i][P:-ns[i]]) , i = 0 .. P:-r)};
                 
                 taus := {seq(seq({
-                    doubleToSingleIndex(P:-format, i, ordered_indices[i,j]), 
-                    doubleToSingleIndex(P:-format, i, ordered_indices[i,j+1])}, 
-                    j = 1 .. P:-ns[i] - 1), i = 1 .. P:-r)};
+                    doubleToSingleIndex(P:-format, i, ordered_indices[i][j]), 
+                    doubleToSingleIndex(P:-format, i, ordered_indices[i][j+1])}, 
+                    j = 1 .. P:-ns[i] - 1), i = 0 .. P:-r)};
                 
                 if P:-case = "EE" then
                     self:-Sigma := {sigma_plus} union taus union {sigma_minus};
                 elif P:-case = "PE" then
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), P:-n + 1} , i = 1 .. P:-r)};
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][1]), P:-n + 1} , i = 0 .. P:-r)};
                     self:-Sigma := taus_plus union taus union {sigma_minus};
                 elif P:-case = "EP" then
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), P:-n + 1} , i = 1 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][P:-ns[i]]), P:-n + 1} , i = 0 .. P:-r)};
                     self:-Sigma := {sigma_plus} union taus union taus_minus;
                 elif P:-case = "PP" then
                     if P:-d[1, P:-n + 1] = 1 then
@@ -232,16 +232,15 @@ module ComplexityOneVariety()
                         vplus_index := P:-n + 2;
                         vminus_index := P:-n + 1;
                     end if;
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,1]), vplus_index} , i = 1 .. P:-r)};
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i,P:-ns[i]]), vminus_index} , i = 1 .. P:-r)};
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][1]), vplus_index} , i = 0 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][P:-ns[i]]), vminus_index} , i = 0 .. P:-r)};
                     self:-Sigma := taus_plus union taus union taus_minus;
                 end if;
 
             elif P:-classGroupRank = 1 then
-                # In this case, the picard number is one, hence there is only one complete fan in the lattice 
+                # In this case, the rank of the class group is one, hence there is only one complete fan in the lattice 
                 # containing the columns of the P-Matrix as rays.
-                numColumns := ColumnDimension(P:-mat);
-                self:-Sigma := {seq({seq(1 .. numColumns)} minus {i}, i = 1 .. numColumns)};
+                self:-Sigma := {seq({seq(1 .. P:-numCols)} minus {i}, i = 1 .. P:-numCols)};
             elif admitsFano(P) then
                 # In this case, we call the procedure again with the anticanonical class as the weight.
                 return ComplexityOneVariety[ModuleCopy](self, proto, P, getAnticanonicalClass(P));
@@ -429,51 +428,49 @@ module ComplexityOneVariety()
             # Note however that we do not require P to be slope-ordered, hence we have to generalize the formulas
             # a bit by translating the indices through the `ordered_indices` array.
 
-            res := Array(1 .. ColumnDimension(P:-mat), 1 .. ColumnDimension(P:-mat), fill = 0);
-            ordered_indices := [seq(sort([seq(1 .. P:-ns[i])], 
-                        (j1, j2) -> P:-slopes[i, j1] > P:-slopes[i, j2]), 
-                        i = 1 .. P:-r)];
+            res := Array(1 .. P:-numCols, 1 .. P:-numCols, fill = 0);
+            ordered_indices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
+                        (j1, j2) -> P:-slopes[i][j1] > P:-slopes[i][j2]), 
+                        i = 0 .. P:-r)]);
             
-            # First, compute calligraphic m. This is encoded as a list of arrays, since we want to have
+            # First, compute calligraphic m. This is encoded as an array of arrays, since we want to have
             # the indexing go from 0 to n_i.
-            mcal := [];
-            for i from 1 to P:-r do
-                newM := Array(0 .. P:-ns[i], fill = 0);
+            mcal := Array(0 .. P:-r);
+            for i from 0 to P:-r do
+                mcal[i] := Array(0 .. P:-ns[i], fill = 0);
                 if P:-case = "EE" or P:-case = "EP" then
                     # There is an elliptic fixed point x^+
-                    newM[0] := - 1 / P:-mplus;
+                    mcal[i][0] := - 1 / P:-mplus;
                 end if;
                 if P:-case = "EE" or P:-case = "PE" then
                     # There is an elliptic fixed point x^-
                     # (Different from printed formula, since our mminus is negated)
-                    newM[P:-ns[i]] := - 1 / P:-mminus;
+                    mcal[i][P:-ns[i]] := - 1 / P:-mminus;
                 end if;
 
                 for j from 1 to P:-ns[i] - 1 do
-                    newM[j] := 1 / (P:-slopes[i,ordered_indices[i,j]] - P:-slopes[i,ordered_indices[i,j+1]]);
+                    mcal[i][j] := 1 / (P:-slopes[i][ordered_indices[i][j]] - P:-slopes[i][ordered_indices[i][j+1]]);
                 end do;
-
-                mcal := [op(mcal), newM];
             end do;
 
             # Compute intersection numbers of two adjacent rays in the leaves.
             # This is independent of the case of P
-            for i from 1 to P:-r do
+            for i from 0 to P:-r do
                 for j_ from 1 to P:-ns[i] - 1 do
-                    j1 := ordered_indices[i,j_];
-                    j2 := ordered_indices[i,j_+1];
+                    j1 := ordered_indices[i][j_];
+                    j2 := ordered_indices[i][j_+1];
                     k1 := doubleToSingleIndex(P:-format, i, j1);
                     k2 := doubleToSingleIndex(P:-format, i, j2);
-                    res[k1,k2] := 1 / (P:-lss[i,j1] * P:-lss[i,j2]) * mcal[i][j_];
+                    res[k1,k2] := 1 / (P:-lss[i][j1] * P:-lss[i][j2]) * mcal[i][j_];
                     res[k2,k1] := res[k1,k2];
                 end do;
             end do:
 
             # Compute the self intersection numbers of rays in the leaves
             # This is independent of the case of P
-            for i from 1 to P:-r do
+            for i from 0 to P:-r do
                 for j_ from 1 to P:-ns[i] do
-                    j := ordered_indices[i,j_];
+                    j := ordered_indices[i][j_];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,k] := - 1 / P:-lss[i][j]^2 * (mcal[i][j_ - 1] + mcal[i][j_]);
                 end do;
@@ -485,16 +482,16 @@ module ComplexityOneVariety()
                 ##########################################
 
                 # Intersection numbers of the highest rays in each block with each other.
-                for i1 from 1 to P:-r do
-                    for i2 in {seq(1 .. P:-r)} minus {i1} do
-                        j1 := ordered_indices[i1,1];
-                        j2 := ordered_indices[i2,1];
+                for i1 from 0 to P:-r do
+                    for i2 in {seq(0 .. P:-r)} minus {i1} do
+                        j1 := ordered_indices[i1][1];
+                        j2 := ordered_indices[i2][1];
                         k1 := doubleToSingleIndex(P:-format, i1, j1);
                         k2 := doubleToSingleIndex(P:-format, i2, j2);
                         if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
+                            res[k1,k2] := - 1 / (P:-lss[i1][j1] * P:-lss[i2][j2]) * (mcal[i1][0] + mcal[i1][1]);
                         else 
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][0];
+                            res[k1,k2] := - 1 / (P:-lss[i1][j1] * P:-lss[i2][j2]) * mcal[i1][0];
                         end if;
                     end do;
                 end do;
@@ -511,8 +508,8 @@ module ComplexityOneVariety()
                 end if;
 
                 # Intersection numbers of the highest rays of each block with D^+
-                for i from 1 to P:-r do
-                    j := ordered_indices[i,1];
+                for i from 0 to P:-r do
+                    j := ordered_indices[i][1];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,kplus] := 1 / P:-lss[i][j];
                     res[kplus,k] := res[k,kplus];
@@ -529,16 +526,16 @@ module ComplexityOneVariety()
                 ##########################################
 
                 # Intersection numbers of the lowest rays in each block with each other.
-                for i1 from 1 to P:-r do
-                    for i2 in {seq(1 .. P:-r)} minus {i1} do
-                        j1 := ordered_indices[i1,P:-ns[i1]];
-                        j2 := ordered_indices[i2,P:-ns[i2]];
+                for i1 from 0 to P:-r do
+                    for i2 in {seq(0 .. P:-r)} minus {i1} do
+                        j1 := ordered_indices[i1][P:-ns[i1]];
+                        j2 := ordered_indices[i2][P:-ns[i2]];
                         k1 := doubleToSingleIndex(P:-format, i1, j1);
                         k2 := doubleToSingleIndex(P:-format, i2, j2);
                         if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * (mcal[i1][0] + mcal[i1][1]);
+                            res[k1,k2] := - 1 / (P:-lss[i1][j1] * P:-lss[i2][j2]) * (mcal[i1][0] + mcal[i1][1]);
                         else 
-                            res[k1,k2] := - 1 / (P:-lss[i1,j1] * P:-lss[i2,j2]) * mcal[i1][P:-ns[i1]];
+                            res[k1,k2] := - 1 / (P:-lss[i1][j1] * P:-lss[i2][j2]) * mcal[i1][P:-ns[i1]];
                         end if;
                     end do;
                 end do;
@@ -555,8 +552,8 @@ module ComplexityOneVariety()
                 end if;
 
                 # Intersection numbers of the highest rays of each block with D^-
-                for i from 1 to P:-r do
-                    j := ordered_indices[i,P:-ns[i]];
+                for i from 0 to P:-r do
+                    j := ordered_indices[i][P:-ns[i]];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,kminus] := 1 / P:-lss[i][j];
                     res[kminus,k] := res[k,kminus];
@@ -584,7 +581,7 @@ module ComplexityOneVariety()
     export intersectionNumber :: static := proc(X :: ComplexityOneVariety, D1 :: list(integer), D2 :: list(integer))
         local k1, k2;
         
-        if nops(D1) <> X:-P:-n + X:-P:-m or nops(D2) <> X:-P:-n + X:-P:-m then
+        if nops(D1) <> X:-P:-numCols or nops(D2) <> X:-P:-numCols then
             error "The list of integers encoding the divisor must have length n + m = %1", X:-P:-n + X:-P:-m;
         end if;
 
@@ -606,10 +603,10 @@ module ComplexityOneVariety()
     *** ADMISSIBLE OPERATIONS ***
     *****************************)
 
-    export removeSingleRedundantBlock :: static := proc(X :: ComplexityOneVariety, i0 :: integer)
+    export removeSingleErasableBlock :: static := proc(X :: ComplexityOneVariety, i0 :: integer)
         local newP, oldToNewIndex, newSigma;
-        newP := PMatrix[removeSingleRedundantBlock](X:-P, i0);
-        oldToNewIndex := k -> if k < add(X:-P:-ns[1 .. i0 - 1]) + 1 then k else k - 1 end if;
+        newP := PMatrix[removeSingleErasableBlock](X:-P, i0);
+        oldToNewIndex := k -> if k < add(X:-P:-ns[0 .. i0 - 1]) + 1 then k else k - 1 end if;
         newSigma := map(cones -> map(oldToNewIndex, cones), X:-Sigma);
         return ComplexityOneVariety(newP, newSigma);
     end proc;
@@ -617,11 +614,11 @@ module ComplexityOneVariety()
     export removeErasableBlocks :: static := proc(X :: ComplexityOneVariety)
         local P, redundantIndices;
         P := X:-P;
-        redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
+        redundantIndices := select(i -> P:-lss[i] = [1], [seq(0 .. P:-r)]);
         # If there is a redundant block and we still have more than two blocks, remove it.
-        if nops(redundantIndices) > 0 and P:-r > 2 then
+        if nops(redundantIndices) > 0 and P:-r > 1 then
             # Recursive call
-            return removeErasableBlocks(removeSingleRedundantBlock(X, redundantIndices[1]));
+            return removeErasableBlocks(removeSingleErasableBlock(X, redundantIndices[1]));
         else
             return X;
         end if;
@@ -648,7 +645,7 @@ module ComplexityOneVariety()
         local U1, newA, ds, U2, i;
         U1 := Matrix([Column(X:-A,[1,2])])^(-1);
         newA := U1 . X:-A;
-        ds := [1, newA[2,3] / newA[1,3], seq(-1 / newA[1,i], i = 3 .. X:-P:-r)];
+        ds := [1, newA[2,3] / newA[1,3], seq(-1 / newA[1,i], i = 3 .. X:-P:-r + 1)];
         U2 := <1,0;0,newA[1,3]/newA[2,3]>;
         AdmissibleOperation[OnA](X:-P:-format, U2 . U1, ds);
     end proc;
@@ -713,9 +710,9 @@ module ComplexityOneVariety()
 
         # The tropical cones are the cones rho_i x QQ^s, where rho_i is generated by the canonical basis vector e_i
         # and e_0 = -(e_1 + ... + e_r). 
-        tropicalSheetsGenerators := [seq([0 $ (P:-r - 1 + k - 1), 1, 0 $ (P:-s - k)], k = 1 .. P:-s), seq([0 $ (P:-r -1 + k - 1), -1, 0 $ (P:-s - k)], k = 1 .. P:-s)];
-        tropicalCones := [poshull([-1 $ (P:-r - 1), 0 $ P:-s], op(tropicalSheetsGenerators)), seq(poshull([0 $ (i-1), 1, 0 $ (P:-r - 1 - i + P:-s)], op(tropicalSheetsGenerators)), i = 1 .. P:-r - 1)];
-        
+        tropicalSheetsGenerators := [seq([0 $ (P:-r + k - 1), 1, 0 $ (P:-s - k)], k = 1 .. P:-s), seq([0 $ (P:-r + k - 1), -1, 0 $ (P:-s - k)], k = 1 .. P:-s)];
+        tropicalCones := [seq(poshull(convert(<canonicalBasisVector(P:-r, i) ; Vector(P:-s, fill = 0)>, list), op(tropicalSheetsGenerators)), i = 0 .. P:-r)];
+
         # To get the new cones of our fan, we intersect each X-Cone with each of the tropical cones.
         # This might yield new rays that we append to our P-Matrix later
         newCones := map(c1 -> op(map(c2 -> intersection(c1,c2), tropicalCones)), map(c -> intSetConeToConvexCone(X:-P, c), getMaximalXCones(X)));
@@ -739,21 +736,25 @@ module ComplexityOneVariety()
         P := X:-P;
         newFan := regularsubdiv(getMinimalAmbientFan(X));
 
-        Pcols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-n + P:-m)])]);
+        Pcols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-numCols)])]);
         allRays := {op(map(c -> op(rays(c)), maximal(newFan)))};
-        newRayBlocks := [select(ray -> not (ray in Pcols) and andmap(k -> ray[k] = -1, [seq(1 .. P:-r - 1)]), allRays)];
-        for i from 2 to P:-r do
-            newRayBlocks := [op(newRayBlocks), select(ray -> not (ray in Pcols) and ray[i-1] = 1 and andmap(k -> ray[k] = 0, {seq(1 .. P:-r - 1)} minus {i-1}), allRays)];
+
+        newRaysByBlocks := Array(0..P:-r);
+        for i from 0 to P:-r do
+            leaf := poshull(convert(canonicalBasisVector(P:-r, i), list));
+            newRaysByBlocks[i] := select(ray -> not (ray in Pcols) and containsrelint(leaf, ray[1 .. P:-r]), allRays);
         end do;
 
         newPColumns := [];
         exceptDivIndices := [];
-        for i from 1 to P:-r do
-            newPColumns := [op(newPColumns), op(map(v -> :-convert(v, list), [Column(P:-mat, [seq(add(P:-ns[1 .. i-1]) + 1 .. add(P:-ns[1 .. i]))])]))];
-            exceptDivIndices := [op(exceptDivIndices), seq(nops(newPColumns) + 1 .. nops(newPColumns) + nops(newRayBlocks[i]))];
-            newPColumns := [op(newPColumns), op(newRayBlocks[i])];
+        for i from 0 to P:-r do
+            # First add the old P-columns
+            newPColumns := [op(newPColumns), op(map(v -> :-convert(v, list), [Column(P:-mat, [seq(add(P:-ns[0 .. i-1]) + 1 .. add(P:-ns[0 .. i]))])]))];
+            exceptDivIndices := [op(exceptDivIndices), seq(nops(newPColumns) + 1  .. nops(newPColumns) + nops(newRaysByBlocks[i]))];
+            # now append the new ones at the end of the block
+            newPColumns := [op(newPColumns), op(newRaysByBlocks[i])];
         end do;
-        newPColumns := [op(newPColumns), op(map(v -> :-convert(v, list), [Column(P:-mat, [seq(P:-n + 1 .. P:-n + P:-m)])]))];
+        newPColumns := [op(newPColumns), op(map(v -> :-convert(v, list), [Column(P:-mat, [seq(P:-n + 1 .. P:-numCols)])]))];
 
         newP := PMatrix(P:-s, Transpose(Matrix(newPColumns)));
         newSigma := {op(map(c -> convexConeToIntSetCone(newP, c), maximal(newFan)))};
@@ -764,19 +765,19 @@ module ComplexityOneVariety()
     end proc;
 
     export minimalResolution :: static := proc(X0 :: ComplexityOneVariety)
-        local X, P, contracticleIndices;
+        local X, P, contractibleIndices;
         X := canonicalResolution(X0);
-        contracticleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
-        while contracticleIndices <> [] do
-            X := ComplexityOneVariety(PMatrix(1, DeleteColumn(X:-P:-mat, contracticleIndices)));
-            contracticleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
+        contractibleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
+        while contractibleIndices <> [] do
+            X := ComplexityOneVariety(PMatrix(1, DeleteColumn(X:-P:-mat, contractibleIndices)));
+            contractibleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         end do;
         return X;
     end proc;
 
     export ModulePrint :: static := proc(self :: ComplexityOneVariety)
         nprintf(cat("ComplexityOneVariety(dim = ", self:-P:-s + 1,
-          ", lss = ", self:-P:-lss,
+          ", lss = ", convert(self:-P:-lss, list),
           ", Sigma = ", self:-Sigma));
     end;
 
