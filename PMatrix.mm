@@ -272,7 +272,7 @@ module PMatrix()
 
                 # Construct the P-matrix from the given data
 
-                self:-P0 := Matrix(self:-r, self:-n, [
+                self:-P0 := Matrix(self:-r, self:-n + self:-m, [
                     # L-block
                     seq(seq(self:-lss[i][j] * canonicalBasisVector(self:-r, i), j = 1 .. self:-ns[i]), i = 0 .. self:-r),
                     # m times zero vector
