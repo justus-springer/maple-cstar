@@ -4,7 +4,7 @@ Some tests for `isBigCone` and `isLeafCone`
 
 $include "../complexity_one.mpl"
 
-with(ComplexityOne):
+with(ComplexityOnePackage):
 with(CodeTools):
 
 f1 := PFormat([2,1,1], 1, 1):
