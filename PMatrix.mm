@@ -383,7 +383,7 @@ module PMatrix()
                 assertColumnsGenerateFullCone(self);
             end if;
 
-            self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
+            self:-d := SubMatrix(P, [self:-r + 1 .. RowDimension(P)], [1 .. ColumnDimension(P)]);
 
             # If this a P-Matrix of a surface, compute the slopes
             if self:-s = 1 then
@@ -623,25 +623,25 @@ module PMatrix()
     (*
     Removes a single redundant column from a P-Matrix.
     *)
-    export removeSingleRedundantBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
+    export removeSingleErasableBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
         local P, C, T, a, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
-        # the redundant columns. We construct the A-Matrix necessary for this.
+        # the redundant columns. We construct the C-Matrix necessary for this.
         # This step is necessary to ensure the columns of the resulting P-Matrix still generate the whole
         # space as a cone.
-        if i0 = 1 then
-            C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = 1 then P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+        if i0 = 0 then
+            C := Matrix(P:-s, P:-r, (k,l) -> if l = 1 then P:-d[k, 1] else 0 end if);
         else
-            C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = i0 - 1 then -P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+            C := Matrix(P:-s, P:-r, (k,l) -> if l = i0 then -P:-d[k, add(P:-ns[0 .. i0-1]) + 1] else 0 end if);
         end if;
         T := Matrix(P:-s, P:-s, shape = diagonal, 1);
         a := AdmissibleOperation[FromRowOperation](P:-format, C, T);
-        P := applyAdmissibleOperation(P,a);
+        P := applyAdmissibleOperation(P, a);
         # Now construct the new P-Matrix data
-        newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {i0})];
-        newFormat := PFormat([seq(P:-ns[i], i in {seq(1 .. P:-r)} minus {i0})], P:-m, P:-s);
-        newD := DeleteColumn(P:-d, add(P:-ns[1 .. i0-1]) + 1);
+        newLss := [seq(P:-lss[i], i in {seq(0 .. P:-r)} minus {i0})];
+        newFormat := PFormat([seq(P:-ns[i], i in {seq(0 .. P:-r)} minus {i0})], P:-m, P:-s);
+        newD := DeleteColumn(P:-d, add(P:-ns[0 .. i0-1]) + 1);
         return PMatrix(newFormat, newLss, newD);
     end proc;
 
@@ -652,11 +652,11 @@ module PMatrix()
     *)
     export removeErasableBlocks :: static := proc(P :: PMatrix)
         local redundantIndices;
-        redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
+        redundantIndices := select(i -> P:-lss[i] = [1], [seq(0 .. P:-r)]);
         # If there is a redundant block and we still have more than two blocks, remove it.
-        if nops(redundantIndices) > 0 and P:-r > 2 then
+        if nops(redundantIndices) > 0 and P:-r > 1 then
             # Recursive call
-            return removeErasableBlocks(removeSingleRedundantBlock(P, redundantIndices[1]));
+            return removeErasableBlocks(removeSingleErasableBlock(P, redundantIndices[1]));
         else
             return P;
         end if;
