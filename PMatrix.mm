@@ -343,11 +343,18 @@ module PMatrix()
                 # an integer multiple of e_i (i-th canonical basis vector)
                 while true do
                     # For array safety, we need this extra clause
-                    if n > ColumnDimension(P0) then
+                    if n > ColumnDimension(P0) or then
                         break;
                     end if;
-                    # Try to solve the equation P0[n] = l * e_i for l
-                    sol := solve({seq(Column(P0, n)[j] = l * canonicalBasisVector(r,i)[j], j = 1 .. r)}, l);
+                    col := Column(P0, n);
+                    # In this case, we have reached the last `m` columns.
+                    if Equal(col, Vector(r, fill = 0)) then
+                        break;
+                    end if;
+
+                    # Try to solve the equation col = l * e_i for l
+                    sol := solve({seq(col[j] = l * canonicalBasisVector(r,i)[j], j = 1 .. r)}, l);
+                    
                     if sol = NULL then
                         # If this is the first column in the i-th block, we fail.
                         if ns[i] = 0 then
@@ -382,6 +389,8 @@ module PMatrix()
 
             self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
             
+            print(self:-d, self:-lss);
+
             # If this a P-Matrix of a surface, compute the slopes
             if self:-s = 1 then
                 setSurfaceData(self, self:-d, self:-lss);
