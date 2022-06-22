@@ -122,7 +122,7 @@ module ComplexityOneVariety()
 
     *)
     export ModuleCopy :: static := proc(self :: ComplexityOneVariety, proto :: ComplexityOneVariety, P :: PMatrix)
-        local numColumns, i, j, k, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A;
+        local numColumns, i, j, k, Sigma, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A;
 
         self:-P := P;
 
@@ -144,6 +144,11 @@ module ComplexityOneVariety()
                 self:-A := A;
             elif type(_passed[4], set(set(integer))) then
                 # Fan Sigma provided
+                if not foldr((c1,c2) -> c1 union c2, {}, op(_passed[4])) = {seq(1 .. P:-numCols)} then
+                    error "The cones of `Sigma` must cover {1 .. %1}", P:-numCols;
+                end if;
+                Sigma := _passed[4];
+
                 self:-Sigma := _passed[4];
             elif type(_passed[4], {Vector, list(integer)}) then
                 # Weight w provided. Compute the associated fan.
