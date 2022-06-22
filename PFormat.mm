@@ -18,6 +18,7 @@ module PFormat()
         end do:
         if m < 0 then error "m must be at least 0." end if:
         if s < 0 then error "s must be at least 0." end if:
+        if nops(ns) - 1 + s > add(ns) + m then error "must have r + s <= n + m." end if;
         self:-r := nops(ns) - 1;
         self:-ns := Array(0 .. self:-r, ns);
         self:-n := add(ns);
