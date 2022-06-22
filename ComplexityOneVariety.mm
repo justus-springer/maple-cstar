@@ -632,7 +632,7 @@ module ComplexityOneVariety()
     export applyAdmissibleOperation :: static := proc(X :: ComplexityOneVariety, a :: AdmissibleOperation)
         local newP, newSigma, newA;
         newP := PMatrix[applyAdmissibleOperation](X:-P, a);
-        newSigma := map(cones -> map(k -> a:-bundledPerm[k], cones), X:-Sigma);
+        newSigma := map(cones -> map(k -> a:-bundledPermutation[k], cones), X:-Sigma);
         if type(X:-A, undefined) then
             ComplexityOneVariety(newP, newSigma);
         else

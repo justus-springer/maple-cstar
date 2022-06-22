@@ -695,7 +695,7 @@ module PMatrix()
         end proc;
         sigma := Perm(sort([seq(0 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
         
-        return AdmissibleOperation[FromPermutations](P:-format, sigma, taus, Perm([]));
+        return AdmissibleOperation[fromColumnPermutation](P:-format, sigma, taus, Perm([]));
 
     end proc;
 

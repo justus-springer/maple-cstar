@@ -3,7 +3,7 @@ module AdmissibleOperation()
     option object;
 
     export formatFrom, sigma, taus, rho, C, T, U, ds;
-    export formatTo, bundledPerm, bundledPermutationMatrix, sigmaPermutationMatrix, B, S, D;
+    export formatTo, bundledPermutation, bundledPermutationMatrix, sigmaPermutationMatrix, B, S, D;
 
     export ModuleApply :: static := proc()
         Object(AdmissibleOperation, _passed);
@@ -71,10 +71,10 @@ module AdmissibleOperation()
             # Some annoying shifting necessary because permutations start counting at one, while we count blocks from zero
             return doubleToSingleIndex(self:-formatTo, sigma[i+1]-1, taus[i+1][j]);
         end proc;
-        self:-bundledPerm := Perm(map(bundledPermApply, [seq(1 .. formatFrom:-numCols)]));
+        self:-bundledPermutation := Perm(map(bundledPermApply, [seq(1 .. formatFrom:-numCols)]));
 
         self:-bundledPermutationMatrix := Matrix(formatFrom:-numCols, formatFrom:-numCols, 
-            (i,j) -> if i = self:-bundledPerm[j] then 1 else 0 end if);
+            (i,j) -> if i = self:-bundledPermutation[j] then 1 else 0 end if);
     
         self:-B := Matrix(formatFrom:-r, formatFrom:-r,
             (i,j) -> if sigma[j+1] = 1 then -1 
@@ -103,12 +103,12 @@ module AdmissibleOperation()
         AdmissibleOperation(formatFrom, sigma, taus, rho, C, T, Matrix([[1,0],[0,1]]), [1 $ formatFrom:-r + 1]);
     end proc;
 
-    export FromPermutations :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
+    export fromColumnPermutation :: static := proc(formatFrom :: PFormat, sigma :: Perm, taus :: list(Perm), rho :: Perm)
         AdmissibleOperation[OnP](formatFrom, sigma, taus, rho, Matrix(formatFrom:-s, formatFrom:-r, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1));
     end proc;
 
     export FromSigma :: static := proc(formatFrom, sigma :: Perm)
-        AdmissibleOperation[FromPermutations](formatFrom, sigma, [Perm([]) $ formatFrom:-r + 1], Perm([]));
+        AdmissibleOperation[fromColumnPermutation](formatFrom, sigma, [Perm([]) $ formatFrom:-r + 1], Perm([]));
     end proc;
 
     export FromSingleBlockSwap :: static := proc(formatFrom :: PFormat, i1 :: integer, i2 :: integer)
@@ -116,7 +116,7 @@ module AdmissibleOperation()
     end proc;
 
     export FromTaus :: static := proc(formatFrom, taus :: list(Perm))
-        AdmissibleOperation[FromPermutations](formatFrom, Perm([]), taus, Perm([]));
+        AdmissibleOperation[fromColumnPermutation](formatFrom, Perm([]), taus, Perm([]));
     end proc;
 
     export FromSingleTau :: static := proc(formatFrom, i :: integer, tau :: Perm)
@@ -124,7 +124,7 @@ module AdmissibleOperation()
     end proc;
 
     export FromRho :: static := proc(formatFrom, rho :: Perm)
-        AdmissibleOperation[FromPermutations](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r + 1], rho);
+        AdmissibleOperation[fromColumnPermutation](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r + 1], rho);
     end proc;
 
     export FromSingleColumnSwap :: static := proc(formatFrom, i :: integer, j1 :: integer, j2 :: integer)
