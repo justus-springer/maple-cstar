@@ -309,6 +309,10 @@ module PMatrix()
             self:-P0 := P:-P0;
             self:-d := P:-d;
 
+            if self:-s = 1 then
+                setSurfaceData(self, self:-d, self:-lss);
+            end if;
+
         elif type(_passed[3], integer) and type(_passed[4], Matrix) then
             # Input method (4)
             # s :: integer, P :: Matrix
