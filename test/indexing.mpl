@@ -1,5 +1,3 @@
-$include "../complexity_one.mpl"
-
 with(ComplexityOnePackage):
 with(CodeTools):
 

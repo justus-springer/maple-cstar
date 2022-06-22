@@ -2,8 +2,6 @@
 Some tests for `isBigCone` and `isLeafCone`
 *)
 
-$include "../complexity_one.mpl"
-
 with(ComplexityOnePackage):
 with(CodeTools):
 

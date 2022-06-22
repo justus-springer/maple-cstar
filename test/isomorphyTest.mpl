@@ -1,5 +1,3 @@
-$include "../ComplexityOne.mpl"
-
 with(convex):
 with(LinearAlgebra):
 with(ComplexityOnePackage):
