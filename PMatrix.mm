@@ -695,7 +695,7 @@ module PMatrix()
         end proc;
         sigma := Perm(sort([seq(0 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
         
-        return AdmissibleOperation[fromColumnPermutation](P:-format, sigma, taus, Perm([]));
+        return AdmissibleOperation[FromColumnPermutation](P:-format, sigma, taus, Perm([]));
 
     end proc;
 
@@ -735,7 +735,7 @@ module PMatrix()
     Computes all admissible column operations leaving the L-block of a P-Matrix invariant.
     This is an important step for checking if two P-Matrices are equivalent by admissible operations.
     *)
-    export invariantAdmissibleOperations :: static := proc(P0 :: PMatrix)
+    export invariantColumnPermutations :: static := proc(P0 :: PMatrix)
     
         local a0, P, admOps, i, taus, rhos;
 
@@ -791,7 +791,7 @@ module PMatrix()
 
         # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
         # sending the L-block of P1 to the L-block of P2.
-        admOps := map(a -> compose(a, a0), invariantAdmissibleOperations(P1));
+        admOps := map(a -> compose(a, a0), invariantColumnPermutations(P1));
 
         # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
         resultOps := [];
