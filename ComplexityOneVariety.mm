@@ -659,57 +659,78 @@ module ComplexityOneVariety()
         applyAdmissibleOperation(X, standardizeCoefficientMatrixOperation(X));
     end proc;
     
-    export areCoefficientMatricesEquivalentOperation :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
-        local a1, a2;
+    export areCoefficientMatricesEquivalent :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
+        local a1, a2, resultOp;
+
+        # Output handling
+        if _npassed > 2 then
+            if not (_passed[3] in {'boolean', 'operation'}) then
+                error "third parameter must be either 'boolean' or 'operation'";
+            end if;
+            out := _passed[3]
+        else
+            out := 'boolean';
+        end if;
+
         a1 := standardizeCoefficientMatrixOperation(X1);
         a2 := standardizeCoefficientMatrixOperation(X2);
+        resultOp := NULL;
         if Equal(applyAdmissibleOperation(X1, a1):-A, applyAdmissibleOperation(X2, a2):-A) then
-            return compose(a1, inverse(a2));
+            resultOp := compose(a1, inverse(a2));
         end if;
-        return NULL;
-    end proc;
-
-    export areCoefficientMatricesEquivalent :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
-        type(areCoefficientMatricesEquivalentOperation(X1, X2), AdmissibleOperation);
+       
+        if out = 'operation' then
+            return resultOp;
+        else
+            return type(resultOp, AdmissibleOperation);
+        end if;
     end proc;
 
     (*
     Checks whether two complexity-one varieties are isomorphic to each other
     *)
     export areIsomorphic :: static := proc(X1_ :: ComplexityOneVariety, X2_ :: ComplexityOneVariety)
-        local X1, X2, a, newX1, coefficientOp;
+        local X1, X2, a, newX1, coefficientOp, out;
+
+        # Output handling
+        if _npassed > 2 then
+            if not (_passed[3] in {'boolean', 'operation'}) then
+                error "third parameter must be either 'boolean' or 'operation'";
+            end if;
+            out := _passed[3]
+        else
+            out := 'boolean';
+        end if;
 
         X1 := removeErasableBlocks(X1_);
         X2 := removeErasableBlocks(X2_);
 
         resultOps := [];
 
-        for a in PMatrix[areEquivalent](X1:-P, X2:-P, 'operations') do
+        for a in PMatrix[areEquivalent](X1:-P, X2:-P, 'operation') do
             newX1 := applyAdmissibleOperation(X1, a);
             if getMaximalXCones(newX1) = getMaximalXCones(X2) then
                 # If there are no coefficient matrices, we are done.
                 if type(X1:-A, undefined) or type(X2:-A, undefined) then
-                    if _npassed > 2 and _passed[3] = 'operations' then
-                        resultOps := [op(resultOps), a];
-                    else
+                    if out = 'boolean' then
                         return true;
                     end if;
+                    resultOps := [op(resultOps), a];
                 else
                     # Else we check if the coefficient matrices can be turned into each other by an
                     # admissible operation on the coefficient matrix.
-                    coefficientOp := areCoefficientMatricesEquivalentOperation(newX1, X2);
+                    coefficientOp := areCoefficientMatricesEquivalent(newX1, X2, 'operation');
                     if type(coefficientOp, AdmissibleOperation) then
-                        if _npassed > 2 and _passed[3] = 'operations' then
-                            resultOps := [op(resultOps), compose(a, coefficientOp)];
-                        else
+                        if out = 'boolean' then
                             return true;
                         end if;
+                        resultOps := [op(resultOps), compose(a, coefficientOp)];
                     end if;
                 end if;
             end if;
         end do;
 
-        if _npassed > 2 and _passed[3] = 'operations' then
+        if out = 'operation' then
             return resultOps;
         else
             return evalb(resultOps <> []);

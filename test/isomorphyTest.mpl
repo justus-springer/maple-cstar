@@ -18,7 +18,7 @@ Xs1 := [
 for i from 1 to nops(Xs1) do
     for j from 1 to nops(Xs1) do
         Test(areIsomorphic(Xs1[i], Xs1[j]), true, label = cat("areIsomorphicTest-1-", i, "-", j));
-        as := areIsomorphic(Xs1[i], Xs1[j], 'operations');
+        as := areIsomorphic(Xs1[i], Xs1[j], 'operation');
         for a in as do
             Test(Equal(applyAdmissibleOperation(Xs1[i], a):-P:-mat, Xs1[j]:-P:-mat), true, label = cat("areIsomorphicOperationTest-1-", i, "-", j));
         end do;
@@ -53,7 +53,7 @@ Xs3 := [
 for i from 1 to nops(Xs3) do
     for j from 1 to nops(Xs3) do
         Test(areIsomorphic(Xs3[i], Xs3[j]), true, label = cat("areIsomorphicTest-3-", i, "-", j));
-        as := areIsomorphic(Xs3[i], Xs3[j], 'operations');
+        as := areIsomorphic(Xs3[i], Xs3[j], 'operation');
         for a in as do
             Test(Equal(applyAdmissibleOperation(Xs3[i], a):-P:-mat, Xs3[j]:-P:-mat), true, label = cat("areIsomorphicOperationTest-3-", i, "-", j));
         end do;
