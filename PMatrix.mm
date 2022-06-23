@@ -8,7 +8,7 @@ module PMatrix()
 
     # Format data. Note that the classGroupRank is just n+m - (r+s), hence we consider it
     # part of the format.
-    export format, r, ns, n, m, s, dim, classGroupRank;
+    export format, r, ns, n, m, s, numCols, numRows, dim, classGroupRank;
 
     # The exponents of the relations in the Cox Ring, encoded as a list of lists.
     export lss;
@@ -93,22 +93,24 @@ module PMatrix()
         self:-n := f:-n;
         self:-m := f:-m;
         self:-s := f:-s;
+        self:-numRows := f:-numRows;
+        self:-numCols := f:-numCols;
         self:-dim := f:-dim;
         self:-classGroupRank := f:-classGroupRank;
     end proc;
 
-    local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss :: list(list(integer)))
+    local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss)
         local i, j;
-        self:-slopes := [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-slopes := Array(0..self:-r, [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
         self:-mplus := add(self:-maximumSlopes);
         self:-mminus := -add(self:-minimumSlopes);
         self:-mplusFloor := add(map(floor, self:-maximumSlopes));
         self:-mminusCeil := -add(map(ceil, self:-minimumSlopes));
-        self:-betasPlus := [seq([seq(self:-slopes[i,j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-betasPlus := Array(0..self:-r, [seq([seq(self:-slopes[i][j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-sortedBetasPlus := sortLex(self:-betasPlus);
-        self:-betasMinus := [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i,j], j = 1 .. self:-ns[i])], i = 1 .. self:-r)];
+        self:-betasMinus := Array(0..self:-r, [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-sortedBetasMinus := sortLex(self:-betasMinus);
 
         # Set the case
@@ -151,7 +153,7 @@ module PMatrix()
     # Throws an error if they are not.
     local assertColumnsPrimitive :: static := proc(self :: PMatrix)
         local i;
-        for i from 1 to self:-n + self:-m do
+        for i from 1 to self:-numCols do
             if igcd(seq(Column(self:-mat, i))) <> 1 then
                 error "This is not a P-matrix: The %-1 column is not primitve.", i;
             end if;
@@ -161,7 +163,7 @@ module PMatrix()
     # Check if the columns generate QQ^(r+s) as a cone.
     # Throws an error if they do not.
     local assertColumnsGenerateFullCone :: static := proc(self :: PMatrix)
-        if poshull(Column(self:-mat, [seq(1..self:-n + self:-m)])) &<> fullcone(self:-r + self:-s - 1) then
+        if poshull(Column(self:-mat, [seq(1..self:-numCols)])) &<> fullcone(self:-numRows) then
             error "This is not a P-matrix. The columns do not generate QQ^(r+s) as a cone.";
         end if;
     end proc;
@@ -197,7 +199,7 @@ module PMatrix()
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, format, d, rows, rows0, i, j, P, r, s, ns, numZerosBefore, mplusFloor, betasPlus, case;
+        local lss, ls, l, format, d, rows, rows0, i, j, P, P0, n, m, r, s, ns, numZerosBefore, mplusFloor, betasPlus, case;
         
         if _npassed = 2 then error "not enough arguments." end if;
 
@@ -214,7 +216,7 @@ module PMatrix()
                 # In this case, we call the function again with input method (4) and check if the
                 # inferred format coincides with the given one.
                 P := PMatrix(_passed[3]:-s, _passed[4]);
-                if P:-ns <> _passed[3]:-ns then
+                if not EqualEntries(P:-ns, _passed[3]:-ns) then
                     error "Expected P-Format does not coincide with the inferred one. Expected: ns = %1. Inferred: ns = %2", _passed[3]:-ns, P:-ns;
                 elif P:-m <> _passed[3]:-m then
                     error "Expected P-Format does not coincide with the inferred one. Expected: m = %1. Inferred: m = %2", _passed[3]:-m, P:-m;
@@ -241,7 +243,7 @@ module PMatrix()
                     error "Expected 2nd argument to be of type: list(list(integer))";
                 end if;
 
-                self:-lss := _passed[4];
+                self:-lss := Array(0..self:-r, _passed[4]);
 
                 for ls in self:-lss do
                     for l in ls do
@@ -251,13 +253,13 @@ module PMatrix()
                     end do;
                 end do;
 
-                if not type(_passed[5], 'Matrix'(self:-s, self:-n + self:-m, integer)) then
+                if not type(_passed[5], 'Matrix'(self:-s, self:-numCols, integer)) then
                     error "Expected 3rd argument to be of type: Matrix(%1, %2, integer)", self:-s, self:-n + self:-m;
                 end if;
                 self:-d := _passed[5];
 
                 # Check if the given ls match the given P-format
-                for i from 1 to self:-r do
+                for i from 0 to self:-r do
                     if nops(self:-lss[i]) <> self:-ns[i] then
                         error "length of %-1 vector in lss does not match given P-format. Expected length: %2. Given length: %3.", i, self:-ns[i], nops(self:-lss[i]);
                     end if;
@@ -269,15 +271,14 @@ module PMatrix()
                 end if;
 
                 # Construct the P-matrix from the given data
-                rows := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
-                            seq(self:-lss[i])), (0 $ add(self:-ns[i+1..self:-r]) + self:-m)], i = 2 .. self:-r),
-                        seq(:-convert(Row(self:-d, j), list), j = 1 .. self:-s)];
-                self:-mat := Matrix(rows);
 
-                # Only the L-block. This gives P0.
-                rows0 := [seq([seq(-self:-lss[1]), (0 $ add(self:-ns[2..i-1]),
-                            seq(self:-lss[i])), (0 $ add(self:-ns[i..self:-r-1]))], i = 2 .. self:-r)];
-                self:-P0 := Matrix(rows0);
+                self:-P0 := Matrix(self:-r, self:-n + self:-m, [
+                    # L-block
+                    seq(seq(self:-lss[i][j] * canonicalBasisVector(self:-r, i), j = 1 .. self:-ns[i]), i = 0 .. self:-r),
+                    # m times zero vector
+                    seq(Vector(self:-r) $ self:-m)]);
+
+                self:-mat := <self:-P0 ; self:-d>;
 
                 if not 'skipChecks' in [_passed] then
                     assertColumnsPrimitive(self);
@@ -301,12 +302,16 @@ module PMatrix()
             d := _passed[4];
             ns := map(nops, lss);
             format := PFormat(ns, ColumnDimension(d) - add(ns), RowDimension(d));
-            setFormat(self, format);
             P := PMatrix(format, lss, d);
+            setFormat(self, format);
             self:-lss := P:-lss;
             self:-mat := P:-mat;
             self:-P0 := P:-P0;
             self:-d := P:-d;
+
+            if self:-s = 1 then
+                setSurfaceData(self, self:-d, self:-lss);
+            end if;
 
         elif type(_passed[3], integer) and type(_passed[4], Matrix) then
             # Input method (4)
@@ -321,110 +326,74 @@ module PMatrix()
                 error "The dimension of the acting torus `s` cannot be greater than the number of rows of `P` minus one.";
             end if;
 
-            self:-P0 := SubMatrix(P, [seq(1 .. RowDimension(P) - s)], [seq(1 .. ColumnDimension(P))]);
-
-            r := RowDimension(P) - s + 1;
-
             for i in P do
                 if not type(i, integer) then
                     error "All entries of P must be of type: integer";
                 end if;
             end do;
 
-            # Get the first vector l1 by looking at the first row of `P`.
-            # We move right until the entries are no longer negative.
-            ls := [];
-            if not (P[1,1] < 0) then
-                error "Given matrix is not in P-shape. Expected: P[1,1] < 0. Given: P[1,1] = %1", P[1,1];
-            end if;
-            i := 1;
-            while P[1,i] < 0 do
-                ls := [op(ls), -P[1,i]];
-                i := i + 1;
+            r := RowDimension(P) - s;
+            P0 := SubMatrix(P, [seq(1 .. r)], [seq(1 .. ColumnDimension(P))]);
+            self:-P0 := P0;
 
-                # Needs to be checked before we re-enter the loop
-                if i > ColumnDimension(P) then
-                    error "Given matrix is not in P-shape. Expected: P[1,%1] > 0. Given: P[1,%1] = %2", i-1, P[1,i-1];
-                end if;
-            end do;
-
-            lss := [ls];
-            ns := [nops(ls), 0 $ r-1]; # Here, we preliminarily fill up with zeros.
-
-            # Check that the first r-1 rows of P all start with -l1
-            for i from 1 to r-1 do
-                for j from 1 to nops(ls) do
-                    if P[i,j] <> P[1,j] then
-                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = P[1,%2]. Given: P[%1,%2] = %3 and P[1,%2] = %4", i, j, P[i,j], P[1,j];
+            # We now construct the format and the `lss` from the P-Matrix.
+            # First, we initialize the variables
+            ns := Array(0..r, fill = 0);
+            lss := Array(0..r, fill = []);
+            # `n` will be our counter for the columns of P0
+            n := 1;
+            for i from 0 to r do
+                # We will break from this loop as soon as the n-th column of P0 is no longer
+                # an integer multiple of e_i (i-th canonical basis vector)
+                while true do
+                    # For array safety, we need this extra clause
+                    if n > ColumnDimension(P0) then
+                        break;
                     end if;
+                    col := Column(P0, n);
+
+                    # Try to solve the equation col = l * e_i for l
+                    sol := solve({seq(col[j] = l * canonicalBasisVector(r,i)[j], j = 1 .. r)}, l);
+                    
+                    if sol = NULL or rhs(sol[1]) <= 0 then
+                        # If this is the first column in the i-th block, we fail.
+                        if ns[i] = 0 then
+                            error "This matrix is not in P-shape. The %1-th column is faulty.", n;
+                        end if;
+                        # Otherwise, we break the loop and continue with the next block (increments i).
+                        break;
+                    end if;
+                    # Save the solution and continue.
+                    lss[i] := [op(lss[i]), rhs(sol[1])];
+                    ns[i]++;
+                    n++;
                 end do;
             end do;
+            # Note that at the end of this loop, n equals the sum of the ns[i].
+            m := ColumnDimension(P) - n;
 
-            for i from 1 to r-1 do
-                # Note that since we fill up the remaining entries of `ns` with zeros, the following
-                # gives the correct result.
-                numZerosBefore := add(ns[2..]);
-                for j from ns[1] + 1 to ns[1] + numZerosBefore do
-                    if P[i,j] <> 0 then
-                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = 0. Given: P[%1,%2] = %3", i, j, P[i,j];
-                    end if;
-                end do;
-
-                if P[i,j] < 1 then
-                    error "Given matrix is not in P-shape. Expected: P[%1,%2] > 0. Given: P[%1,%2] = %3", i, j, P[i,j];
+            # Check if we really have zeros in the upper right block
+            for k from 1 to m do
+                if not Equal(Column(self:-P0, n + k), Vector(r, fill = 0)) then
+                    error "This matrix is not in P-shape. The %1-th column is faulty.", n + k;
                 end if;
-
-                ls := [];
-                while P[i,j] <> 0 do
-
-                    if P[i,j] < 1 then
-                        error "Given matrix is not in P-shape. Expected: P[%1,%2] > 0. Given: P[%1,%2] = %3", i, j, P[i,j];
-                    end if;
-
-                    ls := [op(ls), P[i,j]];
-
-                    if i = r-1 and j = ColumnDimension(P) then
-                      break; # In this case, we are done.
-                    end if;
-
-                    j := j + 1;
-
-                    # Needs to be checked before we re-enter the loop
-                    if j > ColumnDimension(P) then
-                        error "Given matrix is not in P-shape. Expected: P[%1,%2] = 0. Given: P[%1,%2] = %3", i, j-1, P[i,j-1];
-                    end if;
-
-                end do;
-
-                ns[i+1] := nops(ls);
-                lss := [op(lss), ls];
-
             end do;
 
             self:-lss := lss;
-            setFormat(self, PFormat(ns, ColumnDimension(P) - add(ns), RowDimension(P) - r + 1));
-            
-
-            # Check if we really have all-zeros in the upper right block
-            for i from 1 to r-1 do
-                for j from self:-n + 1 to self:-n + self:-m do
-                    if P[i,j] <> 0 then
-                        error "Given matrix is not in P-shape. Expected P[%1,%2] = 0. Given: P[%1,%2] = %3", i, j, P[i,j];
-                    end if;
-                end do;
-            end do;
+            setFormat(self, PFormat(:-convert(ns, list), ColumnDimension(P) - add(ns), RowDimension(P) - r));
 
             if not 'skipChecks' in [_passed] then
                 assertColumnsPrimitive(self);
                 assertColumnsGenerateFullCone(self);
             end if;
 
-            self:-d := SubMatrix(P, [self:-r .. RowDimension(P)], [1 .. ColumnDimension(P)]);
-            
+            self:-d := SubMatrix(P, [self:-r + 1 .. RowDimension(P)], [1 .. ColumnDimension(P)]);
+
             # If this a P-Matrix of a surface, compute the slopes
             if self:-s = 1 then
                 setSurfaceData(self, self:-d, self:-lss);
             end if;
+
         elif type(_passed[3], integer) and type(_passed[4], list) and type(_passed[5], string) then
             # Input method (5)
             # mplusFloor :: integer, betasPlus :: list(list(fraction)), case :: string
@@ -437,11 +406,10 @@ module PMatrix()
 
             ns := map(nops, betasPlus);
 
-            self:-lss := map(betas -> map(beta -> denom(beta), betas), betasPlus);
+            lss := map(betas -> map(beta -> denom(beta), betas), betasPlus);
             self:-d := Matrix(1, add(ns),
-                [[seq(self:-lss[1,j] * (betasPlus[1,j] + mplusFloor), j = 1 .. ns[1]),
-                  seq(seq(self:-lss[i,j] * betasPlus[i,j], j = 1 .. ns[i]), i = 2 .. nops(ns))]]);
-
+                [[seq(lss[1,j] * (betasPlus[1,j] + mplusFloor), j = 1 .. ns[1]),
+                  seq(seq(lss[i,j] * betasPlus[i,j], j = 1 .. ns[i]), i = 2 .. nops(ns))]]);
 
             if case = "EE" then
                 setFormat(self, PFormat(ns, 0, 1));
@@ -456,7 +424,8 @@ module PMatrix()
                 setFormat(self, PFormat(ns, 2, 1));
             end if;
 
-            P := PMatrix(self:-format, self:-lss, self:-d);
+            P := PMatrix(self:-format, lss, self:-d);
+            self:-lss := P:-lss;
             self:-mat := P:-mat;
             self:-P0 := P:-P0;
             setSurfaceData(self, self:-d, self:-lss);
@@ -537,7 +506,7 @@ module PMatrix()
     export getAnticanCoefficients :: static := proc(self :: PMatrix)
         if type(self:-anitcanCoefficients, undefined) or 'forceCompute' in [_passed] then
             setAnticanCoefficients(self,
-                [1 $ self:-n + self:-m] - (self:-r - 2) * [op(self:-lss[1]), 0 $ self:-n + self:-m - self:-ns[1]]);
+                [1 $ self:-numCols] - (self:-r - 1) * [op(self:-lss[0]), 0 $ self:-n + self:-m - self:-ns[0]]);
         end if;
         return self:-anitcanCoefficients;
     end;
@@ -546,7 +515,7 @@ module PMatrix()
         local as, i, anticanVec, d;
         if type(self:-anticanonicalClass, undefined) or 'forceCompute' in [_passed] then
             as := getAnticanCoefficients(self);
-            anticanVec := add(seq(as[i] * Column(getDegreeMatrix(self), i), i = 1 .. self:-n + self:-m));
+            anticanVec := add(seq(as[i] * Column(getDegreeMatrix(self), i), i = 1 .. self:-numCols));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
             # We normalize these entries, so that each of them is less than `d`.
             for i from 1 to nops(getClassGroup(self)) - 1 do
@@ -559,7 +528,7 @@ module PMatrix()
 
     export localCartierIndex :: static := proc(self :: PMatrix, cone :: set(integer), D :: list(integer))
         local us, sol;
-        us := [seq(u[i], i = 1 .. RowDimension(self:-mat))];
+        us := [seq(u[i], i = 1 .. self:-numRows)];
         sol := solve({seq(DotProduct(us, Column(self:-mat, j)) = D[j], j in cone)});
         if sol = NULL then
             return infinity;
@@ -585,19 +554,19 @@ module PMatrix()
     Computes the local class group of the variety associated to a P-Matrix.
     *)
     export getLocalClassGroup :: static := proc(self :: PMatrix, cone :: set(integer))
-        imageFactorGroup(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)])));
+        imageFactorGroup(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-numCols)} minus cone)])));
     end proc;
 
     (*
     Computes the local picard index of a given X-cone.
     *)
     export localPicardIndex :: static := proc(self :: PMatrix, cone :: set(integer))
-        indexOfImage(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-n + self:-m)} minus cone)])));
+        indexOfImage(Transpose(DeleteColumn(self:-mat, [op({seq(1 .. self:-numCols)} minus cone)])));
     end proc;
 
     export getEffectiveCone :: static := proc(self :: PMatrix)
         if type(self:-effectiveCone, undefined) or 'forceCompute' in [_passed] then
-            setEffectiveCone(self, poshull(Column(getDegreeMatrixFree(self), [seq(1 .. self:-n + self:-m)])));
+            setEffectiveCone(self, poshull(Column(getDegreeMatrixFree(self), [seq(1 .. self:-numCols)])));
         end if;
         return self:-effectiveCone;
     end proc;
@@ -630,7 +599,7 @@ module PMatrix()
 
     export isToric :: static := proc(P :: PMatrix)
         if type(P:-isToricVal, undefined) or 'forceCompute' in [_passed] then
-            setIsToricVal(P, evalb(removeErasableBlocks(P):-r = 2));
+            setIsToricVal(P, evalb(removeErasableBlocks(P):-r = 1));
         end if;
         return P:-isToricVal;
     end proc;
@@ -638,8 +607,8 @@ module PMatrix()
     export isIrredundant :: static := proc(P :: PMatrix)
         local redundantIndices;
         if type(P:-isIrredundantVal, undefined) or 'forceCompute' in [_passed] then
-            redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
-            setIsIrredundantVal(P, evalb(P:-r = 2 or redundantIndices = []));
+            redundantIndices := select(i -> P:-lss[i] = [1], [seq(0 .. P:-r)]);
+            setIsIrredundantVal(P, evalb(P:-r = 1 or redundantIndices = []));
         end if;
         return P:-isIrredundantVal;        
     end proc;
@@ -658,25 +627,25 @@ module PMatrix()
     (*
     Removes a single redundant column from a P-Matrix.
     *)
-    export removeSingleRedundantBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
+    export removeSingleErasableBlock :: static := proc(P_ :: PMatrix, i0 :: integer)
         local P, C, T, a, newLss, newD, newFormat, i;
         P := P_;
         # First, we have to apply admissible row operations to achieve all zeros in the d-block under
-        # the redundant columns. We construct the A-Matrix necessary for this.
+        # the redundant columns. We construct the C-Matrix necessary for this.
         # This step is necessary to ensure the columns of the resulting P-Matrix still generate the whole
         # space as a cone.
-        if i0 = 1 then
-            C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = 1 then P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+        if i0 = 0 then
+            C := Matrix(P:-s, P:-r, (k,l) -> if l = 1 then P:-d[k, 1] else 0 end if);
         else
-            C := Matrix(P:-s, P:-r - 1, (k,l) -> if l = i0 - 1 then -P:-d[k, add(P:-ns[1 .. i0-1]) + 1] else 0 end if);
+            C := Matrix(P:-s, P:-r, (k,l) -> if l = i0 then -P:-d[k, add(P:-ns[0 .. i0-1]) + 1] else 0 end if);
         end if;
         T := Matrix(P:-s, P:-s, shape = diagonal, 1);
         a := AdmissibleOperation[FromRowOperation](P:-format, C, T);
-        P := applyAdmissibleOperation(P,a);
+        P := applyAdmissibleOperation(P, a);
         # Now construct the new P-Matrix data
-        newLss := [seq(P:-lss[i], i in {seq(1 .. P:-r)} minus {i0})];
-        newFormat := PFormat([seq(P:-ns[i], i in {seq(1 .. P:-r)} minus {i0})], P:-m, P:-s);
-        newD := DeleteColumn(P:-d, add(P:-ns[1 .. i0-1]) + 1);
+        newLss := [seq(P:-lss[i], i in {seq(0 .. P:-r)} minus {i0})];
+        newFormat := PFormat([seq(P:-ns[i], i in {seq(0 .. P:-r)} minus {i0})], P:-m, P:-s);
+        newD := DeleteColumn(P:-d, add(P:-ns[0 .. i0-1]) + 1);
         return PMatrix(newFormat, newLss, newD);
     end proc;
 
@@ -687,11 +656,11 @@ module PMatrix()
     *)
     export removeErasableBlocks :: static := proc(P :: PMatrix)
         local redundantIndices;
-        redundantIndices := select(i -> P:-lss[i] = [1], [seq(1 .. nops(P:-lss))]);
+        redundantIndices := select(i -> P:-lss[i] = [1], [seq(0 .. P:-r)]);
         # If there is a redundant block and we still have more than two blocks, remove it.
-        if nops(redundantIndices) > 0 and P:-r > 2 then
+        if nops(redundantIndices) > 0 and P:-r > 1 then
             # Recursive call
-            return removeErasableBlocks(removeSingleRedundantBlock(P, redundantIndices[1]));
+            return removeErasableBlocks(removeSingleErasableBlock(P, redundantIndices[1]));
         else
             return P;
         end if;
@@ -702,16 +671,16 @@ module PMatrix()
     The columns of block are sorted descendingly. The blocks themselves are sorted first descendingly
     according to size, and within the same size lexicographically by the lss.
     *)
-    export sortColumnsByLssOperation :: static := proc(P :: PMatrix)
-        local taus, newLss, i, compfun, tau, sigma;
+    export sortColumnsByLss :: static := proc(P :: PMatrix)
+        local taus, newLss, i, compfun, tau, sigma, admOp, sortedP;
 
         # Sort each individual block
         taus := [];
-        for i from 1 to P:-r do
+        for i from 0 to P:-r do
             tau := Perm(sort([seq(1 .. P:-ns[i])], (j1, j2) -> P:-lss[i][j1] > P:-lss[i][j2], 'output' = 'permutation'))^(-1);
             taus := [op(taus), tau];
         end do;
-        newLss := map(i -> applyPermToList(taus[i], P:-lss[i]), [seq(1 .. P:-r)]);
+        newLss := Array(0..P:-r, map(i -> applyPermToList(taus[i+1], P:-lss[i]), [seq(0 .. P:-r)]));
 
         # This is the comparison function we will use to sort the blocks themselves.
         # It returns true if the block of index `i1` should occur before the block of index `i2`.
@@ -728,14 +697,16 @@ module PMatrix()
                 return true;
             end if;
         end proc;
-        sigma := Perm(sort([seq(1 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
-        
-        return AdmissibleOperation[FromPermutations](P:-format, sigma, taus, Perm([]));
+        sigma := Perm(sort([seq(0 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
+        admOp := AdmissibleOperation[FromColumnPermutation](P:-format, sigma, taus, Perm([]));
+        sortedP := applyAdmissibleOperation(P, admOp);
 
-    end proc;
+        if _npassed > 1 and _passed[2] = 'operation' then
+            return admOp;
+        else
+            return sortedP;
+        end if;
 
-    export sortColumnsByLss :: static := proc(P :: PMatrix)
-        applyAdmissibleOperation(P, sortColumnsByLssOperation(P));
     end proc;
 
     (* *******************
@@ -744,25 +715,31 @@ module PMatrix()
 
     (*
     Checks whether two P-Matrices `P1` and `P2` are equivalent to each other by admissible row operations.
-    You can obtain the admissible row operation turning `P1` into `P2` by supplying the parameter `'output' = out`,
-    where `out` is a list of the names 'result', 'C', 'T' and 'S'.
+    If they are equivalent, this procedure outputs the admissible operations turning P1 into P2.
+    If they are not equivalent, it returns false.
     *)
     export areRowEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        local resBool, resOperation, identityMatrix, zeroMatrix, C, T, S, newP, sol, resultList, str, i, j;
+        local resBool, resOperation, identityMatrix, zeroMatrix, C, T, S, newP, sol, resultList, str, i, j, admOp;
 
-        identityMatrix := Matrix(P1:-r - 1, P1:-r - 1, shape = diagonal, 1);
-        zeroMatrix := Matrix(P1:-r - 1, P1:-s, fill = 0);
-        C := Matrix(P1:-s, P1:-r - 1, symbol = 'x');
+        identityMatrix := Matrix(P1:-r, P1:-r, shape = diagonal, 1);
+        zeroMatrix := Matrix(P1:-r, P1:-s, fill = 0);
+        C := Matrix(P1:-s, P1:-r, symbol = 'x');
         T := Matrix(P1:-s, P1:-s, symbol = 'y');
         S := <<identityMatrix | zeroMatrix>, <C | T>>;
         newP := S . P1:-mat;
-        sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r .. RowDimension(P1:-mat))});
-        
+        sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r + 1 .. RowDimension(P1:-mat))});
+
         if sol <> NULL and abs(Determinant(subs(sol, T))) = 1 then
-            return AdmissibleOperation[FromRowOperation](P1:-format, subs(sol, C), subs(sol, T));             
+            admOp := AdmissibleOperation[FromRowOperation](P1:-format, subs(sol, C), subs(sol, T)); 
+        else
+            admOp := NULL;
         end if;
         
-        return false;
+        if _npassed > 2 and _passed[3] = 'operation' then
+            return admOp;
+        else
+            return type(admOp, AdmissibleOperation);
+        end if;
 
     end proc;
 
@@ -770,16 +747,16 @@ module PMatrix()
     Computes all admissible column operations leaving the L-block of a P-Matrix invariant.
     This is an important step for checking if two P-Matrices are equivalent by admissible operations.
     *)
-    export invariantAdmissibleOperations :: static := proc(P0 :: PMatrix)
+    export invariantColumnPermutations :: static := proc(P0 :: PMatrix)
     
         local a0, P, admOps, i, taus, rhos;
 
-        a0 := sortColumnsByLssOperation(P0);
-        P := sortColumnsByLss(P0);
+        a0 := sortColumnsByLss(P0, 'operation');
+        P := applyAdmissibleOperation(P0, a0);
 
-        admOps := map(sigma -> AdmissibleOperation[FromSigma](P:-format, sigma), invariantPermutations(P:-lss));
+        admOps := map(sigma -> AdmissibleOperation[FromSigma](P:-format, sigma), invariantPermutations(:-convert(P:-lss, list)));
 
-        for i from 1 to P:-r do
+        for i from 0 to P:-r do
             taus := map(tau -> AdmissibleOperation[FromSingleTau](P:-format, i, tau), invariantPermutations(P:-lss[i]));
             admOps := map(a -> op(map(tau -> compose(a, tau), taus)), admOps);
         end do;
@@ -794,66 +771,66 @@ module PMatrix()
     end proc;
 
     (*
-    Computes all admissible operations turning `P1_` into `P2_`. If `P1_` and `P2_` are not equivalent
-    by admissible operations, this returns the empty list.
-    *)
-    export areEquivalentOperations :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
-        local Ps, P, i, P1, P2, P11, P12, a0, admOps, resultOps, a, rowOp;
-
-        # First, remove any redundant blocks.
-        P1 := removeErasableBlocks(P1_);
-        P2 := removeErasableBlocks(P2_);
-
-        # After removing redundant blocks, the number of blocks must coincide.
-        if P1:-r <> P2:-r then
-            return [];
-        end if;
-
-        # Varieties of different dimension can't be isomorphic.
-        if P1:-s <> P2:-s then
-            return [];
-        end if; 
-        
-        # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
-        # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
-        a0 := compose(sortColumnsByLssOperation(P1), inverse(sortColumnsByLssOperation(P2)));
-        
-        # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
-        # the P-Matrices can't be equivalent.
-        if applyAdmissibleOperation(P1, a0):-lss <> P2:-lss then
-            return [];
-        end if;
-
-        # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
-        # sending the L-block of P1 to the L-block of P2.
-        admOps := map(a -> compose(a, a0), invariantAdmissibleOperations(P1));
-
-        # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
-        resultOps := [];
-        for a in admOps do
-            rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2);
-            if type(rowOp, AdmissibleOperation) then
-                resultOps := [op(resultOps), compose(a, rowOp)];
-            end if;
-        end do;
-
-        return resultOps;
-
-    end proc;
-
-    (*
-    Determines if two P-Matrices `P1` and `P2` are equivalent by admissible operations.
+    Check if two P-Matrices `P1 and `P2` are equivalent by admissible operations.
+    If a third parameter 'operations' is supplied, this returns the list of admisisble operations
+    turning `P1` into `P2`. Otherwise returns a boolean.
     *)
     export areEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        if P1:-s = 1 and P2:-s = 1 then
-            # Surface case - See theorem (???) of Msc thesis
+        local Ps, P, i, P11, P12, a0, admOps, resultOps, a, rowOp;
+
+        if (_npassed > 2 and _passed[3] = 'operations') or P1:-s > 1 then
+
+            # After removing erasable blocks, the number of blocks must coincide.
+            if P1:-r <> P2:-r then
+                return [];
+            end if;
+
+            # Varieties of different dimension can't be isomorphic.
+            if P1:-s <> P2:-s then
+                return [];
+            end if; 
+            
+            # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
+            # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
+            a0 := compose(sortColumnsByLss(P1, 'operation'), inverse(sortColumnsByLss(P2, 'operation')));
+            
+            # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
+            # the P-Matrices can't be equivalent.
+            if not EqualEntries(applyAdmissibleOperation(P1, a0):-lss, P2:-lss) then
+                return [];
+            end if;
+
+            # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
+            # sending the L-block of P1 to the L-block of P2.
+            admOps := map(a -> compose(a, a0), invariantColumnPermutations(P1));
+
+            # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
+            resultOps := [];
+            for a in admOps do
+                rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2, 'operation');
+                if type(rowOp, AdmissibleOperation) then
+                    resultOps := [op(resultOps), compose(a, rowOp)];
+                end if;
+            end do;
+
+            if _npassed > 2 and _passed[3] = 'operations' then
+                return resultOps;
+            else
+                return evalb(resultOpns <> []);
+            end if;
+
+        else
+            # Here, we are in the surface case and it has not been asked to return admissible operations.
+            # Hence we can use the faster equivalence criterion, see theorem 3.5.4 from Msc thesis
+            if P1:-s <> P2:-s then
+                return false;
+            end if;
             (P1:-case = P2:-case and P1:-mplusFloor = P2:-mplusFloor and P1:-mminusCeil = P2:-mminusCeil and
-                P1:-sortedBetasPlus = P2:-sortedBetasPlus and P1:-sortedBetasMinus = P2:-sortedBetasMinus) or
+                EqualEntries(P1:-sortedBetasPlus, P2:-sortedBetasPlus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasMinus)) or
             (P1:-case = swapCase(P2:-case) and P1:-mplusFloor = P2:-mminusCeil and P1:-mminusCeil = P2:-mplusFloor and
-                P1:-sortedBetasPlus = P2:-sortedBetasMinus and P1:-sortedBetasMinus = P2:-sortedBetasPlus);
+                EqualEntries(P1:-sortedBetasPlus,P2:-sortedBetasMinus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasPlus));
         end if;
-        # General case
-        evalb(areEquivalentOperations(P1, P2) <> []);
+
     end proc;
 
     (*
@@ -879,18 +856,18 @@ module PMatrix()
     *)
     export convexConeToIntSetCone :: static := proc(P :: PMatrix, cone :: CONE)
         local cols;
-        cols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-n + P:-m)])]);
+        cols := map(v -> :-convert(v, list), [Column(P:-mat, [seq(1 .. P:-numCols)])]);
         return map(ray -> ListTools[Search](ray, cols), {op(rays(cone))});
     end proc;
 
     export ModulePrint :: static := proc(self :: PMatrix)
-        nprintf(cat("PMatrix(", self:-lss, ", m = ", self:-m, ", s = ", self:-s, ")"));
+        nprintf(cat("PMatrix(", :-convert(self:-lss, list), ", m = ", self:-m, ", s = ", self:-s, ")"));
     end;
 
     export PMatrixInfo :: static := proc(self :: PMatrix)
         local P, Q, n, m, classGroupRank, classGroup, anticanonicalClass, admitsFano, i;
         print(P = self:-mat);
-        print([seq(cat(n,i), i = 0 .. self:-r - 1), m] = [seq(self:-ns[i], i = 1 .. self:-r), self:-m]);
+        print([seq(cat(n,i), i = 0 .. self:-r), m] = [seq(self:-ns[i], i = 0 .. self:-r), self:-m]);
         print(Q = getDegreeMatrix(self));
         print(classGroup = getClassGroup(self));
         print(classGroupRank = self:-classGroupRank);

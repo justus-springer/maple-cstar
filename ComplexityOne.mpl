@@ -7,6 +7,16 @@ export
     AdmissibleOperation, 
     PMatrix, 
     ComplexityOneVariety, 
+
+    # Tools
+    swapCase,
+    canonicalBasisVector,
+    applyPermToList,
+    invariantPermutations,
+    sortLexComparison,
+    sortLex,
+    imageFactorGroup,
+    indexOfImage,
     
     # Database stuff
     FindInDatabase, 
@@ -15,12 +25,6 @@ export
     ExportComplexityOneVarietyList, 
     UpdateInDatabase,
     performOnDatabase;
-
-local
-    applyPermToList,
-    invariantPermutations,
-    sortLexComparison,
-    sortLex;
 
 uses LinearAlgebra, Database[SQLite];
 

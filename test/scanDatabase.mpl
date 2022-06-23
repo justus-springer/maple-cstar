@@ -1,6 +1,4 @@
-$include "../complexity_one.mpl"
-
-with(ComplexityOne):
+with(ComplexityOnePackage):
 with(CodeTools):
 with(LinearAlgebra):
 with(convex):
