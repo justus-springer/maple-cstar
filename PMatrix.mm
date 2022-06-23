@@ -671,8 +671,8 @@ module PMatrix()
     The columns of block are sorted descendingly. The blocks themselves are sorted first descendingly
     according to size, and within the same size lexicographically by the lss.
     *)
-    export sortColumnsByLssOperation :: static := proc(P :: PMatrix)
-        local taus, newLss, i, compfun, tau, sigma;
+    export sortColumnsByLss :: static := proc(P :: PMatrix)
+        local taus, newLss, i, compfun, tau, sigma, admOp, sortedP;
 
         # Sort each individual block
         taus := [];
@@ -698,13 +698,15 @@ module PMatrix()
             end if;
         end proc;
         sigma := Perm(sort([seq(0 .. P:-r)], (i1, i2) -> compfun(i1, i2), 'output' = 'permutation'))^(-1);
-        
-        return AdmissibleOperation[FromColumnPermutation](P:-format, sigma, taus, Perm([]));
+        admOp := AdmissibleOperation[FromColumnPermutation](P:-format, sigma, taus, Perm([]));
+        sortedP := applyAdmissibleOperation(P, admOp);
 
-    end proc;
+        if _npassed > 1 and _passed[2] = 'operation' then
+            return admOp;
+        else
+            return sortedP;
+        end if;
 
-    export sortColumnsByLss :: static := proc(P :: PMatrix)
-        applyAdmissibleOperation(P, sortColumnsByLssOperation(P));
     end proc;
 
     (* *******************
@@ -717,7 +719,7 @@ module PMatrix()
     If they are not equivalent, it returns false.
     *)
     export areRowEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        local resBool, resOperation, identityMatrix, zeroMatrix, C, T, S, newP, sol, resultList, str, i, j;
+        local resBool, resOperation, identityMatrix, zeroMatrix, C, T, S, newP, sol, resultList, str, i, j, admOp;
 
         identityMatrix := Matrix(P1:-r, P1:-r, shape = diagonal, 1);
         zeroMatrix := Matrix(P1:-r, P1:-s, fill = 0);
@@ -726,12 +728,18 @@ module PMatrix()
         S := <<identityMatrix | zeroMatrix>, <C | T>>;
         newP := S . P1:-mat;
         sol := isolve({seq(seq(newP[i,j] = P2:-mat[i,j] , j = 1 .. ColumnDimension(P1:-mat)), i = P1:-r + 1 .. RowDimension(P1:-mat))});
-        
+
         if sol <> NULL and abs(Determinant(subs(sol, T))) = 1 then
-            return AdmissibleOperation[FromRowOperation](P1:-format, subs(sol, C), subs(sol, T));             
+            admOp := AdmissibleOperation[FromRowOperation](P1:-format, subs(sol, C), subs(sol, T)); 
+        else
+            admOp := NULL;
         end if;
         
-        return false;
+        if _npassed > 2 and _passed[3] = 'operation' then
+            return admOp;
+        else
+            return type(admOp, AdmissibleOperation);
+        end if;
 
     end proc;
 
@@ -743,8 +751,8 @@ module PMatrix()
     
         local a0, P, admOps, i, taus, rhos;
 
-        a0 := sortColumnsByLssOperation(P0);
-        P := sortColumnsByLss(P0);
+        a0 := sortColumnsByLss(P0, 'operation');
+        P := applyAdmissibleOperation(P0, a0);
 
         admOps := map(sigma -> AdmissibleOperation[FromSigma](P:-format, sigma), invariantPermutations(:-convert(P:-lss, list)));
 
@@ -763,66 +771,66 @@ module PMatrix()
     end proc;
 
     (*
-    Computes all admissible operations turning `P1_` into `P2_`. If `P1_` and `P2_` are not equivalent
-    by admissible operations, this returns the empty list.
-    *)
-    export areEquivalentOperations :: static := proc(P1_ :: PMatrix, P2_ :: PMatrix)
-        local Ps, P, i, P1, P2, P11, P12, a0, admOps, resultOps, a, rowOp;
-
-        # First, remove any erasable blocks.
-        P1 := removeErasableBlocks(P1_);
-        P2 := removeErasableBlocks(P2_);
-
-        # After removing erasable blocks, the number of blocks must coincide.
-        if P1:-r <> P2:-r then
-            return [];
-        end if;
-
-        # Varieties of different dimension can't be isomorphic.
-        if P1:-s <> P2:-s then
-            return [];
-        end if; 
-        
-        # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
-        # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
-        a0 := compose(sortColumnsByLssOperation(P1), inverse(sortColumnsByLssOperation(P2)));
-        
-        # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
-        # the P-Matrices can't be equivalent.
-        if not EqualEntries(applyAdmissibleOperation(P1, a0):-lss, P2:-lss) then
-            return [];
-        end if;
-
-        # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
-        # sending the L-block of P1 to the L-block of P2.
-        admOps := map(a -> compose(a, a0), invariantColumnPermutations(P1));
-
-        # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
-        resultOps := [];
-        for a in admOps do
-            rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2);
-            if type(rowOp, AdmissibleOperation) then
-                resultOps := [op(resultOps), compose(a, rowOp)];
-            end if;
-        end do;
-
-        return resultOps;
-
-    end proc;
-
-    (*
-    Determines if two P-Matrices `P1` and `P2` are equivalent by admissible operations.
+    Check if two P-Matrices `P1 and `P2` are equivalent by admissible operations.
+    If a third parameter 'operations' is supplied, this returns the list of admisisble operations
+    turning `P1` into `P2`. Otherwise returns a boolean.
     *)
     export areEquivalent :: static := proc(P1 :: PMatrix, P2 :: PMatrix)
-        if P1:-s = 1 and P2:-s = 1 then
-            # Surface case - See theorem 3.5.4 of Msc thesis
+        local Ps, P, i, P11, P12, a0, admOps, resultOps, a, rowOp;
+
+        if (_npassed > 2 and _passed[3] = 'operations') or P1:-s > 1 then
+
+            # After removing erasable blocks, the number of blocks must coincide.
+            if P1:-r <> P2:-r then
+                return [];
+            end if;
+
+            # Varieties of different dimension can't be isomorphic.
+            if P1:-s <> P2:-s then
+                return [];
+            end if; 
+            
+            # Composing the sorting opreation of P1 with the inverse sorting operation of P2, we
+            # should obtain an admissible operation sending the L-block of P1 to the L-block of P2.
+            a0 := compose(sortColumnsByLss(P1, 'operation'), inverse(sortColumnsByLss(P2, 'operation')));
+            
+            # If the L-block of P1 does not coincide with the L-block of P2 after sorting, then
+            # the P-Matrices can't be equivalent.
+            if not EqualEntries(applyAdmissibleOperation(P1, a0):-lss, P2:-lss) then
+                return [];
+            end if;
+
+            # By composing `a0` with all invariant operations of P1, we obtain *all* admissible operations
+            # sending the L-block of P1 to the L-block of P2.
+            admOps := map(a -> compose(a, a0), invariantColumnPermutations(P1));
+
+            # For each of these operations, we check if there is an admissible row operation turning the matrix into P2.
+            resultOps := [];
+            for a in admOps do
+                rowOp := areRowEquivalent(applyAdmissibleOperation(P1, a), P2, 'operation');
+                if type(rowOp, AdmissibleOperation) then
+                    resultOps := [op(resultOps), compose(a, rowOp)];
+                end if;
+            end do;
+
+            if _npassed > 2 and _passed[3] = 'operations' then
+                return resultOps;
+            else
+                return evalb(resultOpns <> []);
+            end if;
+
+        else
+            # Here, we are in the surface case and it has not been asked to return admissible operations.
+            # Hence we can use the faster equivalence criterion, see theorem 3.5.4 from Msc thesis
+            if P1:-s <> P2:-s then
+                return false;
+            end if;
             (P1:-case = P2:-case and P1:-mplusFloor = P2:-mplusFloor and P1:-mminusCeil = P2:-mminusCeil and
                 EqualEntries(P1:-sortedBetasPlus, P2:-sortedBetasPlus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasMinus)) or
             (P1:-case = swapCase(P2:-case) and P1:-mplusFloor = P2:-mminusCeil and P1:-mminusCeil = P2:-mplusFloor and
                 EqualEntries(P1:-sortedBetasPlus,P2:-sortedBetasMinus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasPlus));
         end if;
-        # General case
-        evalb(areEquivalentOperations(P1, P2) <> []);
+
     end proc;
 
     (*

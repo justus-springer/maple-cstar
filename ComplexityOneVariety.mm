@@ -643,7 +643,7 @@ module ComplexityOneVariety()
     end proc;
 
     export sortColumnsByLss :: static := proc(X :: ComplexityOneVariety)
-       applyAdmissibleOperation(X, PMatrix[sortColumnsByLssOperation](X:-P));
+       applyAdmissibleOperation(X, PMatrix[sortColumnsByLss](X:-P, 'operation'));
     end proc;
 
     export standardizeCoefficientMatrixOperation :: static := proc(X :: ComplexityOneVariety)
@@ -673,36 +673,48 @@ module ComplexityOneVariety()
         type(areCoefficientMatricesEquivalentOperation(X1, X2), AdmissibleOperation);
     end proc;
 
-    export areIsomorphicOperation :: static := proc(X1_ :: ComplexityOneVariety, X2_ :: ComplexityOneVariety)
+    (*
+    Checks whether two complexity-one varieties are isomorphic to each other
+    *)
+    export areIsomorphic :: static := proc(X1_ :: ComplexityOneVariety, X2_ :: ComplexityOneVariety)
         local X1, X2, a, newX1, coefficientOp;
+
         X1 := removeErasableBlocks(X1_);
         X2 := removeErasableBlocks(X2_);
 
-        for a in PMatrix[areEquivalentOperations](X1:-P, X2:-P) do
+        resultOps := [];
+
+        for a in PMatrix[areEquivalent](X1:-P, X2:-P, 'operations') do
             newX1 := applyAdmissibleOperation(X1, a);
             if getMaximalXCones(newX1) = getMaximalXCones(X2) then
                 # If there are no coefficient matrices, we are done.
                 if type(X1:-A, undefined) or type(X2:-A, undefined) then
-                    return a;
-                end if;
-                # Else we check if the coefficient matrices can be turned into each other by an
-                # admissible operation on the coefficient matrix.
-                coefficientOp := areCoefficientMatricesEquivalentOperation(newX1, X2);
-                if type(coefficientOp, AdmissibleOperation) then
-                    return compose(a, coefficientOp);
+                    if _npassed > 2 and _passed[3] = 'operations' then
+                        resultOps := [op(resultOps), a];
+                    else
+                        return true;
+                    end if;
+                else
+                    # Else we check if the coefficient matrices can be turned into each other by an
+                    # admissible operation on the coefficient matrix.
+                    coefficientOp := areCoefficientMatricesEquivalentOperation(newX1, X2);
+                    if type(coefficientOp, AdmissibleOperation) then
+                        if _npassed > 2 and _passed[3] = 'operations' then
+                            resultOps := [op(resultOps), compose(a, coefficientOp)];
+                        else
+                            return true;
+                        end if;
+                    end if;
                 end if;
             end if;
         end do;
 
-        return NULL;
-    end proc;
-
-    export areIsomorphic :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
-        # If we are in the surface case and there is no A-Matrix to worry about, we can use the faster test.
-        if X1:-P:-s = 1 and X2:-P:-s = 1 and (type(X1:-A, undefined) or type(X2:-A, undefined)) then
-            return areEquivalent(X1:-P, X2:-P);
+        if _npassed > 2 and _passed[3] = 'operations' then
+            return resultOps;
+        else
+            return evalb(resultOps <> []);
         end if;
-        type(areIsomorphicOperation(X1,X2), AdmissibleOperation);
+
     end proc;
 
     (*
