@@ -201,7 +201,7 @@ module AdmissibleOperation()
     end;
 
     export ModulePrint :: static := proc(a :: AdmissibleOperation)
-        local str, isFirstEntry;
+        local str, isFirstEntry, tausString, i;
         str := "AdmissibleOperation(";
 
         if a:-sigma <> Perm([]) then

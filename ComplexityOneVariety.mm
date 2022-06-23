@@ -82,7 +82,7 @@ module ComplexityOneVariety()
     end;
 
     export setCoefficientMatrix :: static := proc(self :: ComplexityOneVariety, A :: Matrix)
-        local P, f, lss, i, j, alpha;
+        local P, f, lss, i, j, alpha, T, S;
         P := self:-P;
         f := P:-format;
         lss := P:-lss;
@@ -122,7 +122,7 @@ module ComplexityOneVariety()
 
     *)
     export ModuleCopy :: static := proc(self :: ComplexityOneVariety, proto :: ComplexityOneVariety, P :: PMatrix)
-        local numColumns, i, j, k, Sigma, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A;
+        local numColumns, i, j, k, Sigma, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A, vplus_index, vminus_index;
 
         self:-P := P;
 
@@ -660,7 +660,7 @@ module ComplexityOneVariety()
     end proc;
     
     export areCoefficientMatricesEquivalent :: static := proc(X1 :: ComplexityOneVariety, X2 :: ComplexityOneVariety)
-        local a1, a2, resultOp;
+        local a1, a2, resultOp, out;
 
         # Output handling
         if _npassed > 2 then
@@ -690,7 +690,7 @@ module ComplexityOneVariety()
     Checks whether two complexity-one varieties are isomorphic to each other
     *)
     export areIsomorphic :: static := proc(X1_ :: ComplexityOneVariety, X2_ :: ComplexityOneVariety)
-        local X1, X2, a, newX1, coefficientOp, out;
+        local X1, X2, a, newX1, coefficientOp, out, resultOps;
 
         # Output handling
         if _npassed > 2 then
@@ -768,7 +768,7 @@ module ComplexityOneVariety()
     end proc;
 
     export canonicalResolution :: static := proc(X0 :: ComplexityOneVariety)
-        local X, P, newFan, Pcols, allRays, newRayBlocks, newPColumns, newP, newSigma, newX, i, exceptDivIndices;
+        local X, P, newFan, Pcols, allRays, newRaysByBlocks, leaf, newPColumns, newP, newSigma, newX, i, exceptDivIndices;
 
         X := tropicalResolution(X0);
         P := X:-P;

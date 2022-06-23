@@ -90,7 +90,7 @@ module PFormat()
     Checks whether a given `cone` is big with respect to a given PFormat.
     *)
     export isBigCone :: static := proc(self :: PFormat, cone :: set(integer))
-        local N, i, k, leaf:
+        local N, i, j, k, leaf:
         for i from 0 to self:-r do
             leaf := map(ij -> doubleToSingleIndex(self, op(ij)), {seq([i, j], j = 1 .. self:-ns[i])});
             if evalb(leaf intersect cone = { }) then
@@ -104,7 +104,7 @@ module PFormat()
     Checks whether a given `cone` is leaf with respect to a given PFormat.
     *)
     export isLeafCone :: static := proc(self :: PFormat, cone :: set(integer))
-        local N, i, k, leaf:
+        local N, i, j, k, leaf:
         for i from 0 to self:-r do
             leaf := map(ij -> doubleToSingleIndex(self, op(ij)), {seq([i, j], j = 1 .. self:-ns[i])}) 
                 union {seq(self:-n + k, k = 1 .. self:-m)};
@@ -127,7 +127,7 @@ module PFormat()
     Given a list of cones, compute the list X-cones which are maximal with respect to a given PFormat.
     *)
     export getMaximalXConesFormat :: static := proc(self :: PFormat, cones :: set(set(integer)))
-        local bigCones, nonBigCones, leafCones, leaf, cone, maxLeafCones, c1, c2, isMaximal, N, i, k;
+        local bigCones, nonBigCones, leafCones, leaf, cone, maxLeafCones, c1, c2, isMaximal, N, i, j, k;
         # First, we compute the big cones. Note that these are neccessarily maximal and there can
         # be no other maximal big cones.
         bigCones := select(c -> isBigCone(self, c), cones);

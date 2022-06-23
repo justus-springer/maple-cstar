@@ -199,7 +199,7 @@ module PMatrix()
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, format, d, rows, rows0, i, j, P, P0, n, m, r, s, ns, numZerosBefore, mplusFloor, betasPlus, case;
+        local lss, ls, l, format, d, rows, rows0, i, j, P, P0, n, m, r, s, ns, numZerosBefore, mplusFloor, betasPlus, case, col, sol, k;
         
         if _npassed = 2 then error "not enough arguments." end if;
 
@@ -527,7 +527,7 @@ module PMatrix()
     end;
 
     export localCartierIndex :: static := proc(self :: PMatrix, cone :: set(integer), D :: list(integer))
-        local us, sol;
+        local us, sol, i, j, e;
         us := [seq(u[i], i = 1 .. self:-numRows)];
         sol := solve({seq(DotProduct(us, Column(self:-mat, j)) = D[j], j in cone)});
         if sol = NULL then
