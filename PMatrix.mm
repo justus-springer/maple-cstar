@@ -33,7 +33,7 @@ module PMatrix()
 
     # Anticanonical class as a vector in the divisor class group
     local anticanonicalClass := undefined;
-    local anitcanCoefficients := undefined;
+    local canonicalDivisorCoefficients := undefined;
 
     # Effective and moving cone in the rational vector space of the divisor class group.
     local effectiveCone := undefined;
@@ -443,9 +443,9 @@ module PMatrix()
 
     export setDegreeMatrixFree :: static := proc(self :: PMatrix, degreeMatrixFree :: Matrix) self:-degreeMatrixFree := degreeMatrixFree; end proc;
 
-    export setAnticanCoefficients :: static := proc(self :: PMatrix, anitcanCoefficients) self:-anitcanCoefficients := anitcanCoefficients; end proc;
+    export setCanonicalDivisorCoefficients :: static := proc(self :: PMatrix, canonicalDivisorCoefficients) self:-canonicalDivisorCoefficients := canonicalDivisorCoefficients; end proc;
 
-    export setAnticanonicalClass :: static := proc(self :: PMatrix, anticanonicalClass) self:-anticanonicalClass := anticanonicalClass; end proc;
+    export setCanonicalDivisorClass :: static := proc(self :: PMatrix, anticanonicalClass) self:-anticanonicalClass := anticanonicalClass; end proc;
 
     export setMovingCone :: static := proc(self :: PMatrix, movingCone :: CONE) self:-movingCone := movingCone; end proc;
     
@@ -503,25 +503,25 @@ module PMatrix()
         return self:-degreeMatrixFree;
     end;
 
-    export getAnticanCoefficients :: static := proc(self :: PMatrix)
-        if type(self:-anitcanCoefficients, undefined) or 'forceCompute' in [_passed] then
-            setAnticanCoefficients(self,
-                [1 $ self:-numCols] - (self:-r - 1) * [op(self:-lss[0]), 0 $ self:-n + self:-m - self:-ns[0]]);
+    export getCanonicalDivisorCoefficients :: static := proc(self :: PMatrix)
+        if type(self:-canonicalDivisorCoefficients, undefined) or 'forceCompute' in [_passed] then
+            setCanonicalDivisorCoefficients(self,
+                (self:-r - 1) * [op(self:-lss[0]), 0 $ self:-n + self:-m - self:-ns[0]] - [1 $ self:-numCols]);
         end if;
-        return self:-anitcanCoefficients;
+        return self:-canonicalDivisorCoefficients;
     end;
 
-    export getAnticanonicalClass :: static := proc(self :: PMatrix)
+    export getCanonicalDivisorClass :: static := proc(self :: PMatrix)
         local as, i, anticanVec, d;
         if type(self:-anticanonicalClass, undefined) or 'forceCompute' in [_passed] then
-            as := getAnticanCoefficients(self);
+            as := getCanonicalDivisorCoefficients(self);
             anticanVec := add(seq(as[i] * Column(getDegreeMatrix(self), i), i = 1 .. self:-numCols));
             # Some entries in `anticanVec` live in cyclic groups Z/dZ.
             # We normalize these entries, so that each of them is less than `d`.
             for i from 1 to nops(getClassGroup(self)) - 1 do
                 anticanVec[self:-classGroupRank + i] := anticanVec[self:-classGroupRank + i] mod getClassGroup(self)[i+1];
             end do;
-            setAnticanonicalClass(self, anticanVec);
+            setCanonicalDivisorClass(self, anticanVec);
         end if;
         return self:-anticanonicalClass;
     end;
@@ -547,7 +547,7 @@ module PMatrix()
     defined by the X-cone, where K_X is the anticanonical divisor.
     *)
     export localGorensteinIndex :: static := proc(self :: PMatrix, cone :: set(integer))
-        localCartierIndex(self, cone, getAnticanCoefficients(self));
+        localCartierIndex(self, cone, getCanonicalDivisorCoefficients(self));
     end;
     
     (*
@@ -592,7 +592,7 @@ module PMatrix()
     *)
     export admitsFano :: static := proc(self :: PMatrix)
         if type(self:-admitsFanoVal, undefined) or 'forceCompute' in [_passed] then
-            setAdmitsFanoVal(self, containsrelint(getMovingCone(self), getAnticanonicalClass(self)));
+            setAdmitsFanoVal(self, containsrelint(getMovingCone(self), -getCanonicalDivisorClass(self)));
         end if;
         return self:-admitsFanoVal;
     end;
@@ -873,7 +873,7 @@ module PMatrix()
         print(Q = getDegreeMatrix(self));
         print(classGroup = getClassGroup(self));
         print(classGroupRank = self:-classGroupRank);
-        print(anticanonicalClass = getAnticanonicalClass(self));
+        print(canonicalClass = getCanonicalDivisorClass(self));
         print(effectiveConeRays = rays(getEffectiveCone(self)));
         print(movingConeRays = rays(getMovingCone(self)));
         print(admitsFano = PMatrix[admitsFano](self));

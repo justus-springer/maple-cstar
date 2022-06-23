@@ -17,8 +17,8 @@ testVarietyConsistency := proc(X :: ComplexityOneVariety, i :: integer)
     computedDegreeMatrix := getDegreeMatrix(X:-P, 'forceCompute');
     Test(Equal(computedDegreeMatrix, cachedDegreeMatrix), true, label = cat("TEST_degreeMatrix_", i));
     # Test anticanonical class
-    cachedAnticanonicalClass := getAnticanonicalClass(X:-P);
-    computedAnticanonicalClass := getAnticanonicalClass(X:-P, 'forceCompute');
+    cachedCanonicalClass := getCanonicalDivisorClass(X:-P);
+    computedCanonicalClass := getCanonicalDivisorClass(X:-P, 'forceCompute');
     Test(Equal(computedAnticanonicalClass, cachedAnticanonicalClass), true, label = cat("TEST_anticanonicalClass_", i));
     # Test gorenstein index
     cachedGorensteinIndex := getGorensteinIndex(X);

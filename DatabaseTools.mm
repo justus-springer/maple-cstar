@@ -45,7 +45,7 @@ ImportComplexityOneVarietyList := proc(stmt)
             setClassGroup(P, parse(Fetch(stmt, INDEX_CLASSGROUP)));
         end if;
         if type(INDEX_ANTICANCLASS, integer) then
-            setAnticanonicalClass(P, Vector(parse(Fetch(stmt, INDEX_ANTICANCLASS))));
+            setCanonicalDivisorClass(P, Vector(parse(Fetch(stmt, INDEX_ANTICANCLASS))));
         end if;
         if type(INDEX_DEGREEMATRIX, integer) then
             setDegreeMatrix(P, Matrix(parse(Fetch(stmt, INDEX_DEGREEMATRIX))));
@@ -139,7 +139,7 @@ ExportComplexityOneVarietyList := proc(connection, tableName :: string, Xs :: li
             Bind(stmt, 9, P:-classGroupRank, valuetype = "integer");
             Bind(stmt, 10, convert(getClassGroup(P), string), valuetype = "text");
             Bind(stmt, 11, convert([seq(convert(Row(getDegreeMatrix(P), i), list), i = 1 .. RowDimension(getDegreeMatrix(P)))], string), valuetype = "text");
-            Bind(stmt, 12, convert(convert(getAnticanonicalClass(P), list), string), valuetype = "text");
+            Bind(stmt, 12, convert(convert(getCanonicalDivisorClass(P), list), string), valuetype = "text");
             Bind(stmt, 13, convert(X:-Sigma, string), valuetype = "text");
             Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
             Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
@@ -206,7 +206,7 @@ UpdateInDatabase := proc(connection, tableName :: string, rowid :: integer, X ::
         "classGroupRank = ", P:-classGroupRank, ", ",
         "classGroup = \"", getClassGroup(P), "\", ",
         "degreeMatrix = \"", convert(getDegreeMatrix(P), list, nested), "\", ",
-        "anticanClass = \"", convert(getAnticanonicalClass(P), list), "\", ",
+        "anticanClass = \"", convert(getCanonicalDivisorClass(P), list), "\", ",
         "ambientFan = \"", X:-Sigma, "\", ",
         "maximalXCones = \"", getMaximalXCones(X), "\", ",
         "gorensteinIndex = ", getGorensteinIndex(X), ", ",
@@ -219,7 +219,7 @@ UpdateInDatabase := proc(connection, tableName :: string, rowid :: integer, X ::
         "variables = \"", X:-variables, "\", ",
         "monomials = \"", X:-monomials, "\", ",
         "relations = \"", X:-relations, "\", ",
-        "intersectionTable = \"", convert(map(x -> [numer(x), denom(x)], getintersectionMatrix(X)), list, nested), "\", ",
+        "intersectionMatrix = \"", convert(map(x -> [numer(x), denom(x)], getintersectionMatrix(X)), list, nested), "\", ",
         "anticanonicalSelfIntersectionFraction = \"", [numer(getAnticanonicalSelfIntersection(X)), denom(getAnticanonicalSelfIntersection(X))], "\", ",
         "anticanonicalSelfIntersectionFloat = ", convert(getAnticanonicalSelfIntersection(X), hfloat), ", ",
         "isToric = ", if isToric(P) then 1 else 0 end if, ", ",

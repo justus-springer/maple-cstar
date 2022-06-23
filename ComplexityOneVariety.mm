@@ -248,7 +248,7 @@ module ComplexityOneVariety()
                 self:-Sigma := {seq({seq(1 .. P:-numCols)} minus {i}, i = 1 .. P:-numCols)};
             elif admitsFano(P) then
                 # In this case, we call the procedure again with the anticanonical class as the weight.
-                return ComplexityOneVariety[ModuleCopy](self, proto, P, getAnticanonicalClass(P));
+                return ComplexityOneVariety[ModuleCopy](self, proto, P, -getCanonicalDivisorClass(P));
             else
                 error "This PMatrix is neither of Picard number one, nor is it a surface, nor does it admit a Fano variety."
                       "Therefore, you must provide a fan Sigma or a weight w as input.";
@@ -413,7 +413,7 @@ module ComplexityOneVariety()
 
     export isFano :: static := proc(self :: ComplexityOneVariety)
         if type(self:-isFanoVal, undefined) or 'forceCompute' in [_passed] then
-            setIsFanoVal(self, containsrelint(getAmpleCone(self), getAnticanonicalClass(self:-P)));
+            setIsFanoVal(self, containsrelint(getAmpleCone(self), -getCanonicalDivisorClass(self:-P)));
         end if;
         return self:-isFanoVal
     end proc;
@@ -598,7 +598,7 @@ module ComplexityOneVariety()
 
     export getAnticanonicalSelfIntersection :: static := proc(X :: ComplexityOneVariety)
         if type(X:-anticanonicalSelfIntersection, undefined) or 'forceCompute' in [_passed] then
-            setAnticanonicalSelfIntersection(X, intersectionNumber(X, getAnticanCoefficients(X:-P), getAnticanCoefficients(X:-P)));
+            setAnticanonicalSelfIntersection(X, intersectionNumber(X, -getCanonicalDivisorCoefficients(X:-P), -getCanonicalDivisorCoefficients(X:-P)));
         end if;
         return X:-anticanonicalSelfIntersection;
     end proc;
@@ -828,7 +828,7 @@ module ComplexityOneVariety()
         print(Q = getDegreeMatrix(self:-P));
         print(classGroup = getClassGroup(self:-P));
         print(classGroupRank = self:-P:-classGroupRank);
-        print(anticanonicalClass = getAnticanonicalClass(self:-P));
+        print(canonicalClass = getCanonicalDivisorClass(self:-P));
         print(effectiveConeRays = rays(getEffectiveCone(self:-P)));
         print(movingConeRays = rays(getMovingCone(self:-P)));
         print(ampleConeRays = rays(getAmpleCone(self)));
