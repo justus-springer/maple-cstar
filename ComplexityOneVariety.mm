@@ -71,7 +71,7 @@ module ComplexityOneVariety()
     ###############################################################################
     ### The following fields are only defined for K*-surfaces, i.e. when s = 1. ###
     ###############################################################################
-    local intersectionTable := undefined;
+    local intersectionMatrix := undefined;
     local anticanonicalSelfIntersection := undefined;
 
     # This field is only filled if the variety is created as some resolution of singularities from another variety
@@ -418,12 +418,12 @@ module ComplexityOneVariety()
         return self:-isFanoVal
     end proc;
 
-    export setintersectionTable :: static := proc(self :: ComplexityOneVariety, intersectionTable :: Array) self:-intersectionTable := intersectionTable; end proc;
+    export setintersectionMatrix :: static := proc(self :: ComplexityOneVariety, intersectionMatrix :: Array) self:-intersectionMatrix := intersectionMatrix; end proc;
 
-    export getIntersectionTable :: static := proc(X :: ComplexityOneVariety)   
+    export getintersectionMatrix :: static := proc(X :: ComplexityOneVariety)   
         local P, res, ordered_indices, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
 
-        if type(X:-intersectionTable, undefined) or 'forceCompute' in [_passed] then
+        if type(X:-intersectionMatrix, undefined) or 'forceCompute' in [_passed] then
             P := X:-P;
             if X:-P:-s > 1 then
                 error "Intersection numbers are only defined for K*-surfaces, i.e. s = 1.";
@@ -570,11 +570,11 @@ module ComplexityOneVariety()
 
             end if;
 
-            setintersectionTable(X, res);
+            setintersectionMatrix(X, res);
         
         end if;
 
-        return X:-intersectionTable;
+        return X:-intersectionMatrix;
 
     end proc;
 
@@ -590,7 +590,7 @@ module ComplexityOneVariety()
             error "The list of integers encoding the divisor must have length n + m = %1", X:-P:-n + X:-P:-m;
         end if;
 
-        return add([seq(seq(D1[k1] * D2[k2] * getIntersectionTable(X)[k1,k2], k2 = 1 .. nops(D2)), k1 = 1 .. nops(D1))]);
+        return add([seq(seq(D1[k1] * D2[k2] * getintersectionMatrix(X)[k1,k2], k2 = 1 .. nops(D2)), k1 = 1 .. nops(D1))]);
 
     end proc;
 
@@ -805,10 +805,10 @@ module ComplexityOneVariety()
     export minimalResolution :: static := proc(X0 :: ComplexityOneVariety)
         local X, P, contractibleIndices;
         X := canonicalResolution(X0);
-        contractibleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
+        contractibleIndices := select(i -> getintersectionMatrix(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         while contractibleIndices <> [] do
             X := ComplexityOneVariety(PMatrix(1, DeleteColumn(X:-P:-mat, contractibleIndices)));
-            contractibleIndices := select(i -> getIntersectionTable(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
+            contractibleIndices := select(i -> getintersectionMatrix(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         end do;
         return X;
     end proc;
@@ -820,7 +820,7 @@ module ComplexityOneVariety()
     end;
 
     export ComplexityOneVarietyInfo :: static := proc(self :: ComplexityOneVariety)
-        local P, i, relations, maximalXCones, Q, classGroup, classGroupRank, anticanonicalClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionTable, anticanonicalSelfIntersection;
+        local P, i, relations, maximalXCones, Q, classGroup, classGroupRank, anticanonicalClass, effectiveConeRays, movingConeRays, ampleConeRays, isFano, gorensteinIndex, intersectionMatrix, anticanonicalSelfIntersection;
         print(P = self:-P:-mat);
         print([seq(cat(n,i), i = 0 .. self:-P:-r - 1), m] = [seq(self:-P:-ns[i], i = 1 .. self:-P:-r), self:-P:-m]);
         print(relations = self:-relations);
@@ -835,7 +835,7 @@ module ComplexityOneVariety()
         print(isFano = ComplexityOneVariety[isFano](self));
         print(gorensteinIndex = getGorensteinIndex(self));
         if self:-P:-s = 1 then
-            print(intersectionTable = getIntersectionTable(self));
+            print(intersectionMatrix = getintersectionMatrix(self));
             print(anticanonicalSelfIntersection = getAnticanonicalSelfIntersection(self));
         end if;
     end;
