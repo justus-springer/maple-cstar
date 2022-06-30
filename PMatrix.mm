@@ -70,13 +70,9 @@ module PMatrix()
     export maximumSlopes := undefined;
     export minimumSlopes := undefined;
 
-    # The sum of the maximum resp. negative sum of minimum slopes
+    # The sum of floors of maximum slopes resp. negative sum of ceils of minimum slopes
     export mplus := undefined;
     export mminus := undefined;
-
-    # The sum of floors of maximum slopes resp. negative sum of ceils of minimum slopes
-    export mplusFloor := undefined;
-    export mminusCeil := undefined;
 
     export betasPlus := undefined;
     export sortedBetasPlus := undefined;
@@ -104,10 +100,8 @@ module PMatrix()
         self:-slopes := Array(0..self:-r, [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
-        self:-mplus := add(self:-maximumSlopes);
-        self:-mminus := -add(self:-minimumSlopes);
-        self:-mplusFloor := add(map(floor, self:-maximumSlopes));
-        self:-mminusCeil := -add(map(ceil, self:-minimumSlopes));
+        self:-mplus := add(map(floor, self:-maximumSlopes));
+        self:-mminus := -add(map(ceil, self:-minimumSlopes));
         self:-betasPlus := Array(0..self:-r, [seq([seq(self:-slopes[i][j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-sortedBetasPlus := sortLex(self:-betasPlus);
         self:-betasMinus := Array(0..self:-r, [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
@@ -180,7 +174,7 @@ module PMatrix()
     (2) lss :: list(list(integer)), d :: Matrix.
     (3) format :: PFormat, P :: Matrix.
     (4) s :: integer, P :: Matrix
-    (5) mplusFloor :: integer, betasPlus :: list(list(fraction)), case :: string
+    (5) mplus :: integer, betasPlus :: list(list(fraction)), case :: string
 
     In input method (1) and (2), `lss` is the list of exponent vectors of relations
     of the Cox Ring. These make up the first `r-1` rows of the PMatrix. The lower
@@ -199,7 +193,7 @@ module PMatrix()
     *)
     export ModuleCopy :: static := proc(self :: PMatrix, proto :: PMatrix)
 
-        local lss, ls, l, format, d, rows, rows0, i, j, P, P0, n, m, r, s, ns, numZerosBefore, mplusFloor, betasPlus, case, col, sol, k;
+        local lss, ls, l, format, d, rows, rows0, i, j, P, P0, n, m, r, s, ns, numZerosBefore, mplus, betasPlus, case, col, sol, k;
         
         if _npassed = 2 then error "not enough arguments." end if;
 
@@ -396,9 +390,9 @@ module PMatrix()
 
         elif type(_passed[3], integer) and type(_passed[4], list) and type(_passed[5], string) then
             # Input method (5)
-            # mplusFloor :: integer, betasPlus :: list(list(fraction)), case :: string
+            # mplus :: integer, betasPlus :: list(list(fraction)), case :: string
 
-            mplusFloor := _passed[3];
+            mplus := _passed[3];
             betasPlus := _passed[4];
             case := _passed[5];
 
@@ -408,7 +402,7 @@ module PMatrix()
 
             lss := map(betas -> map(beta -> denom(beta), betas), betasPlus);
             self:-d := Matrix(1, add(ns),
-                [[seq(lss[1,j] * (betasPlus[1,j] + mplusFloor), j = 1 .. ns[1]),
+                [[seq(lss[1,j] * (betasPlus[1,j] + mplus), j = 1 .. ns[1]),
                   seq(seq(lss[i,j] * betasPlus[i,j], j = 1 .. ns[i]), i = 2 .. nops(ns))]]);
 
             if case = "EE" then
@@ -791,9 +785,9 @@ module PMatrix()
         if out = 'boolean' and P1:-s = 1 and P2:-s = 1 then
             # Here, we are in the surface case and it has not been asked to return admissible operations.
             # Hence we can use the faster equivalence criterion, see theorem 3.5.4 from Msc thesis
-            (P1:-case = P2:-case and P1:-mplusFloor = P2:-mplusFloor and P1:-mminusCeil = P2:-mminusCeil and
+            (P1:-case = P2:-case and P1:-mplus = P2:-mplus and P1:-mminus = P2:-mminus and
                 EqualEntries(P1:-sortedBetasPlus, P2:-sortedBetasPlus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasMinus)) or
-            (P1:-case = swapCase(P2:-case) and P1:-mplusFloor = P2:-mminusCeil and P1:-mminusCeil = P2:-mplusFloor and
+            (P1:-case = swapCase(P2:-case) and P1:-mplus = P2:-mminus and P1:-mminus = P2:-mplus and
                 EqualEntries(P1:-sortedBetasPlus,P2:-sortedBetasMinus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasPlus));
         else
 
@@ -840,9 +834,9 @@ module PMatrix()
     *)
     export normalForm :: static := proc(P :: PMatrix)
         if P:-orientation = -1 then
-            PMatrix(P:-mminusCeil, sortLex(P:-betasMinus), swapCase(P:-case));
+            PMatrix(P:-mminus, sortLex(P:-betasMinus), swapCase(P:-case));
         else
-            PMatrix(P:-mplusFloor, sortLex(P:-betasPlus), P:-case);
+            PMatrix(P:-mplus, sortLex(P:-betasPlus), P:-case);
         end if;
     end proc;
 
