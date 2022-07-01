@@ -738,6 +738,10 @@ module ComplexityOneVariety()
 
     end proc;
 
+    export normalForm :: static := proc(X :: ComplexityOneVariety)
+        applyAdmissibleOperation(X, PMatrix[normalFormOperation](X:-P));
+    end proc;
+
     (*
     Construct the tropical resolution of a ComplexityOneVariety.
     *)

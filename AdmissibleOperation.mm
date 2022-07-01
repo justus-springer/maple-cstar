@@ -135,6 +135,14 @@ module AdmissibleOperation()
         AdmissibleOperation[OnP](formatFrom, Perm([]), [Perm([]) $ formatFrom:-r + 1], Perm([]), C, T);
     end proc;
 
+    export FromC :: static := proc(formatFrom :: PFormat, C :: Matrix)
+        AdmissibleOperation[FromRowOperation](formatFrom, C, Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1));
+    end proc;
+
+    export FromT :: static := proc(formatFrom :: PFormat, T :: Matrix)
+        AdmissibleOperation[FromRowOperation](formatFrom, Matrix(formatFrom:-s, formatFrom:-r, fill = 0), T);
+    end proc;
+
     export OnA :: static := proc(formatFrom, U :: Matrix, ds :: list(complex))
         AdmissibleOperation(formatFrom, Perm([]), [Perm([]) $ formatFrom:-r + 1], Perm([]), Matrix(formatFrom:-s, formatFrom:-r, fill = 0), Matrix(formatFrom:-s, formatFrom:-s, shape = diagonal, 1), U, ds);
     end proc;

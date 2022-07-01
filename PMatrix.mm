@@ -70,9 +70,15 @@ module PMatrix()
     export maximumSlopes := undefined;
     export minimumSlopes := undefined;
 
-    # The sum of floors of maximum slopes resp. negative sum of ceils of minimum slopes
+    # The sum of maximum slopes resp. negative sum of minimum slopes
     export mplus := undefined;
     export mminus := undefined;
+
+    export maximumSlopesInt := undefined;
+    export minimumSlopesInt := undefined;
+
+    export mplusInt := undefined;
+    export mminusInt := undefined;
 
     export betasPlus := undefined;
     export sortedBetasPlus := undefined;
@@ -100,8 +106,12 @@ module PMatrix()
         self:-slopes := Array(0..self:-r, [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
-        self:-mplus := add(map(floor, self:-maximumSlopes));
-        self:-mminus := -add(map(ceil, self:-minimumSlopes));
+        self:-maximumSlopesInt := map(floor, self:-maximumSlopes);
+        self:-minimumSlopesInt := map(ceil, self:-minimumSlopes);
+        self:-mplus := add(self:-maximumSlopes);
+        self:-mminus := -add(self:-minimumSlopes);
+        self:-mplusInt := add(map(floor, self:-maximumSlopes));
+        self:-mminusInt := -add(map(ceil, self:-minimumSlopes));
         self:-betasPlus := Array(0..self:-r, [seq([seq(self:-slopes[i][j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-sortedBetasPlus := sortLex(self:-betasPlus);
         self:-betasMinus := Array(0..self:-r, [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
@@ -122,14 +132,14 @@ module PMatrix()
 
         # Set the orientation
         if self:-case = "EE" or self:-case = "PP" then
-            if self:-mplus > self:-mminus then
+            if self:-mplusInt > self:-mminusInt then
                 self:-orientation := 1;
-            elif self:-mplus < self:-mminus then
+            elif self:-mplusInt < self:-mminusInt then
                 self:-orientation := -1;
             else
-                if sortLexComparison(sortLex(self:-betasPlus), sortLex(self:-betasMinus)) then
+                if sortLexComparison(self:-sortedBetasPlus, self:-sortedBetasMinus) then
                     self:-orientation := 1;
-                elif sortLexComparison(sortLex(self:-betasMinus), sortLex(self:-betasPlus)) then
+                elif sortLexComparison(self:-sortedBetasMinus, self:-sortedBetasPlus) then
                     self:-orientation := -1;
                 else
                     self:-orientation := 0;
@@ -785,9 +795,9 @@ module PMatrix()
         if out = 'boolean' and P1:-s = 1 and P2:-s = 1 then
             # Here, we are in the surface case and it has not been asked to return admissible operations.
             # Hence we can use the faster equivalence criterion, see theorem 3.5.4 from Msc thesis
-            (P1:-case = P2:-case and P1:-mplus = P2:-mplus and P1:-mminus = P2:-mminus and
+            (P1:-case = P2:-case and P1:-mplusInt = P2:-mplusInt and P1:-mminusInt = P2:-mminusInt and
                 EqualEntries(P1:-sortedBetasPlus, P2:-sortedBetasPlus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasMinus)) or
-            (P1:-case = swapCase(P2:-case) and P1:-mplus = P2:-mminus and P1:-mminus = P2:-mplus and
+            (P1:-case = swapCase(P2:-case) and P1:-mplusInt = P2:-mminusInt and P1:-mminusInt = P2:-mplusInt and
                 EqualEntries(P1:-sortedBetasPlus,P2:-sortedBetasMinus) and EqualEntries(P1:-sortedBetasMinus, P2:-sortedBetasPlus));
         else
 
@@ -830,14 +840,49 @@ module PMatrix()
     end proc;
 
     (*
+    Computes the admissible operation necessary to bring a P-Matrix of a K*-surface into normal form.
+    *)
+    export normalFormOperation :: static := proc(P0 :: PMatrix)
+
+        local a, P, swapOp, taus, newBetas, sigma, rho, colPer, C, rowOp;
+
+        a := AdmissibleOperation[Identity](P0:-format);
+        P := P0;
+
+        if P:-orientation = -1 then
+            swapOp := AdmissibleOperation[FromT](P:-format, Matrix([[-1]]));
+            P := applyAdmissibleOperation(P, swapOp);
+            a := compose(a, swapOp);
+        end if;
+
+        taus := map(ls -> Perm(sort(ls, sortLexComparison, 'output' = 'permutation'))^(-1), :-convert(P:-betasPlus, list));
+        newBetas := map(i -> applyPermToList(taus[i], :-convert(P:-betasPlus, list)[i]), [seq(1 .. P:-r + 1)]);
+
+        sigma := Perm(sort(newBetas, sortLexComparison, 'output' = 'permutation'))^(-1);
+
+        if P:-m = 2 and P:-d[1, P:-n + 1] = -1 then
+            rho := Perm([[1,2]]);
+        else 
+            rho := Perm([]);
+        end if;
+
+        colPer := AdmissibleOperation[FromColumnPermutation](P:-format, sigma, taus, rho);
+        P := applyAdmissibleOperation(P, colPer);
+        a := compose(a, colPer);
+
+        C := - Matrix(1, P:-r, [:-convert(P:-maximumSlopesInt[1..P:-r], list)]);
+        rowOp := AdmissibleOperation[FromC](P:-format, C);
+        a := compose(a, rowOp);
+
+        return a;
+
+    end proc;
+
+    (*
     Computes the normal form for a P-Matrix of a surface.
     *)
     export normalForm :: static := proc(P :: PMatrix)
-        if P:-orientation = -1 then
-            PMatrix(P:-mminus, sortLex(P:-betasMinus), swapCase(P:-case));
-        else
-            PMatrix(P:-mplus, sortLex(P:-betasPlus), P:-case);
-        end if;
+        applyAdmissibleOperation(P, normalFormOperation(P));
     end proc;
 
     (*
