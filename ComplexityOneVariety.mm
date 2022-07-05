@@ -739,7 +739,7 @@ module ComplexityOneVariety()
     end proc;
 
     export normalForm :: static := proc(X :: ComplexityOneVariety)
-        applyAdmissibleOperation(X, PMatrix[normalFormOperation](X:-P));
+        applyAdmissibleOperation(X, PMatrix[normalForm](X:-P, 'operation'));
     end proc;
 
     (*
