@@ -19,10 +19,11 @@ export
     indexOfImage,
     
     # Database stuff
+    CreateDatabase,
+    ImportFromDatabase,
+    ImportFromDatabaseID,
     FindInDatabase, 
-    ImportComplexityOneVarietyList, 
-    ImportComplexityOneVariety, 
-    ExportComplexityOneVarietyList, 
+    ExportToDatabase,
     UpdateInDatabase,
     performOnDatabase;
 
