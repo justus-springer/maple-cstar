@@ -132,9 +132,9 @@ module PMatrix()
 
         # Set the orientation
         if self:-case = "EE" or self:-case = "PP" then
-            if self:-mplusInt > self:-mminusInt then
+            if self:-mplus > self:-mminus then
                 self:-orientation := 1;
-            elif self:-mplusInt < self:-mminusInt then
+            elif self:-mplus < self:-mminus then
                 self:-orientation := -1;
             else
                 if sortLexComparison(self:-sortedBetasPlus, self:-sortedBetasMinus) then
