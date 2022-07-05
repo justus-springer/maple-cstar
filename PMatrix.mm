@@ -842,7 +842,7 @@ module PMatrix()
     (*
     Computes the admissible operation necessary to bring a P-Matrix of a K*-surface into normal form.
     *)
-    export normalFormOperation :: static := proc(P0 :: PMatrix)
+    export normalForm :: static := proc(P0 :: PMatrix)
 
         local a, P, swapOp, taus, newBetas, sigma, rho, colPer, C, rowOp;
 
@@ -872,17 +872,15 @@ module PMatrix()
 
         C := - Matrix(1, P:-r, [:-convert(P:-maximumSlopesInt[1..P:-r], list)]);
         rowOp := AdmissibleOperation[FromC](P:-format, C);
+        P := applyAdmissibleOperation(P, rowOp);
         a := compose(a, rowOp);
 
-        return a;
+        if _npassed > 1 and _passed[2] = 'operation' then
+            return a;
+        else
+            return P;
+        end if;
 
-    end proc;
-
-    (*
-    Computes the normal form for a P-Matrix of a surface.
-    *)
-    export normalForm :: static := proc(P :: PMatrix)
-        applyAdmissibleOperation(P, normalFormOperation(P));
     end proc;
 
     (*
