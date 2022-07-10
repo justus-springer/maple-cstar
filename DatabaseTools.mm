@@ -8,7 +8,7 @@ Creates a SQLite database for storing K*-surfaces with a given filepath
 CreateDatabase := proc(filePath :: string, tableName :: string)
     local db;
     db := Open(filePath);
-    Execute(db, cat("CREATE TABLE ", tableName, "(r, ns, n, m, s, lss, P, dimension, classGroupRank, classGroup, degreeMatrix, canonicalDivisorClass, ambientFan, maximalXCones, gorensteinIndex, isGorenstein, orderedLss, effectiveCone, movingCone, ampleCone, isFano, variables, monomials, relations, intersectionMatrix, anticanonicalSelfIntersectionFraction, anticanonicalSelfIntersectionFloat, isToric, isIrredundant, isQfactorial, isFactorial, localPicardIndices, picardIndex, isQgorenstein, localGorensteinIndices, localGorensteinQuotients, gorensteinQuotient, case_, orientation, mplus, mminus, betasPlus, betasMinus);"));
+    Execute(db, cat("CREATE TABLE ", tableName, "(r, ns, n, m, s, lss, P, dimension, classGroupRank, classGroup, degreeMatrix, canonicalDivisorClass, ambientFan, maximalXCones, gorensteinIndex, isGorenstein, orderedLss, effectiveCone, movingCone, ampleCone, isFano, variables, monomials, relations, intersectionMatrix, anticanonicalSelfIntersectionFraction, anticanonicalSelfIntersectionFloat, isToric, isIrredundant, isQfactorial, isFactorial, localPicardIndices, picardIndex, isQgorenstein, localGorensteinIndices, localGorensteinQuotients, gorensteinQuotient, case_, orientation);"));
     return db;
 end proc;
 
@@ -82,13 +82,13 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
         # Can be disabled by the 'noChecks' option
         if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = [] then
             P := X:-P;
-            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
-            Bind(stmt, 2, convert(P:-ns, string), valuetype = "text");
+            Bind(stmt, 2, convert(convert(P:-ns, list), string), valuetype = "text");
             Bind(stmt, 3, P:-n, valuetype = "integer");
             Bind(stmt, 4, P:-m, valuetype = "integer");
             Bind(stmt, 5, P:-s, valuetype = "integer");
-            Bind(stmt, 6, convert(P:-lss, string), valuetype = "text");
+            Bind(stmt, 6, convert(convert(P:-lss, list, nested), string), valuetype = "text");
             Bind(stmt, 7, convert([seq(convert(Row(P:-mat, i), list), i = 1 .. RowDimension(P:-mat))], string), valuetype = "text");
             Bind(stmt, 8, P:-dim, valuetype = "integer");
             Bind(stmt, 9, P:-classGroupRank, valuetype = "integer");
@@ -99,7 +99,7 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
             Bind(stmt, 14, convert(getMaximalXCones(X), string), valuetype = "text");
             Bind(stmt, 15, getGorensteinIndex(X), valuetype = "integer");
             Bind(stmt, 16, isGorenstein(X), valuetype = "integer");
-            Bind(stmt, 17, convert(sortColumnsByLss(P):-lss, string), valuetype = "text");
+            Bind(stmt, 17, convert(convert(sortColumnsByLss(P):-lss, list, nested), string), valuetype = "text");
             Bind(stmt, 18, convert(rays(getEffectiveCone(P)), string), valuetype = "text");
             Bind(stmt, 19, convert(rays(getMovingCone(P)), string), valuetype = "text");
             Bind(stmt, 20, convert(rays(getAmpleCone(X)), string), valuetype = "text");
@@ -122,10 +122,6 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
             Bind(stmt, 37, getGorensteinQuotient(X), valuetype = "integer");
             Bind(stmt, 38, X:-P:-case, valuetype = "text");
             Bind(stmt, 39, X:-P:-orientation, valuetype = "integer");
-            Bind(stmt, 40, X:-P:-mplusInt, valuetype = "integer");
-            Bind(stmt, 41, X:-P:-mminusInt, valuetype = "integer");
-            Bind(stmt, 42, convert(convert(X:-P:-sortedBetasPlus, list), string), valuetype = "text");
-            Bind(stmt, 43, convert(convert(X:-P:-sortedBetasMinus, list), string), valuetype = "text");
 
             Step(stmt);
             Finalize(stmt);
