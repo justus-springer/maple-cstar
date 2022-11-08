@@ -115,7 +115,38 @@ indexOfImage := proc(P :: Matrix)
     if factorGroup[1] > 0 then
         return infinity;
     else
-        return lcm(op(factorGroup[2 .. nops(factorGroup)]));
+        return mul(factorGroup[2 .. nops(factorGroup)]);
     end if;
 end proc;
+
+# Computes the column hermite form of a matrix.
+# An additional argument specifying the output is also supported
+# (same as in LinearAlgebra:-HermiteForm).
+dualHermiteForm := proc(A :: Matrix)
+    res := HermiteForm(Transpose(A), _passed[2.._npassed]);
+    if type(res, list) then
+        return map(Transpose, res);
+    else
+        return Transpose(res);
+    end if;
+end proc;
+
+# Computes the integer kernel of a matrix.
+integerKernel := proc(A :: Matrix)
+    DeleteColumn(dualHermiteForm(A, output = 'U'), [1 .. Rank(A)]);
+end proc;
+
+# Given integer matrices defining sublattices of ZZ^n, compute a basis
+# of the intersection of the two sublattices.
+# For performance reasons, the output is automatically put into hermite form.
+integerIntersectionBasis := proc(A1 :: Matrix, A2 :: Matrix)
+    K := integerKernel(<A1 | -A2>);
+    B2 := DeleteRow(K, [1..ColumnDimension(A1)]);
+    return A2 . B2;
+end proc;
+
+integerIntersectionBasisList := proc(As :: list(Matrix))
+    foldl(integerIntersectionBasis, op(As));
+end proc;
+
 

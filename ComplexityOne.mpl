@@ -17,6 +17,10 @@ export
     sortLex,
     imageFactorGroup,
     indexOfImage,
+    dualHermiteForm,
+    integerKernel,
+    integerIntersectionBasis,
+    integerIntersectionBasisList,
     
     # Database stuff
     CreateDatabase,

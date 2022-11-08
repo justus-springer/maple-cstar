@@ -316,8 +316,25 @@ module ComplexityOneVariety()
     end proc;
 
     export getPicardIndex :: static := proc(self :: ComplexityOneVariety)
+        local P, Q, cones, clsGroup, localPicardGroups, picardGroup, factGrp;
+        
         if type(self:-picardIndex, undefined) or 'forceCompute' in [_passed] then
-            setPicardIndex(self, lcm(op(getLocalPicardIndices(self))));
+            # The picard index is the index of the picard group in the class group.
+            # Note that it is *not* equal to the lcm of the local picard indices, since
+            # the index of the intersection of two subgroups in an abelian group is not
+            # equal to the lcm of the individual indices (the lcm is a lower bound though)
+
+            r := getClassGroup(self:-P)[1];
+            numTorsion := nops(getClassGroup(self:-P)) - 1;
+            torsionColumns := <Matrix(r, numTorsion, fill = 0) ; Matrix(numTorsion, numTorsion, Vector(getClassGroup(self:-P)[2 .. -1]), shape = diagonal)>;
+
+            cones := map(c -> {seq(1 .. self:-P:-numCols)} minus c, convert(getMaximalXCones(X), list));
+            Q := getDegreeMatrix(X:-P);
+            lattices := map(c -> <Matrix([Column(Q, convert(c, list))]) | torsionColumns>, cones);
+
+            return indexOfImage(integerIntersectionBasisList(lattices));
+
+            setPicardIndex(self, mul(AGdata(factGrp)[4][i], i = 1 .. nops(AGdata(factGrp)[4])));
         end if;
         return self:-picardIndex;
     end proc;
