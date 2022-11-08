@@ -328,13 +328,11 @@ module ComplexityOneVariety()
             numTorsion := nops(getClassGroup(self:-P)) - 1;
             torsionColumns := <Matrix(r, numTorsion, fill = 0) ; Matrix(numTorsion, numTorsion, Vector(getClassGroup(self:-P)[2 .. -1]), shape = diagonal)>;
 
-            cones := map(c -> {seq(1 .. self:-P:-numCols)} minus c, convert(getMaximalXCones(X), list));
-            Q := getDegreeMatrix(X:-P);
+            cones := map(c -> {seq(1 .. self:-P:-numCols)} minus c, convert(getMaximalXCones(self), list));
+            Q := getDegreeMatrix(self:-P);
             lattices := map(c -> <Matrix([Column(Q, convert(c, list))]) | torsionColumns>, cones);
 
-            return indexOfImage(integerIntersectionBasisList(lattices));
-
-            setPicardIndex(self, mul(AGdata(factGrp)[4][i], i = 1 .. nops(AGdata(factGrp)[4])));
+            setPicardIndex(self, indexOfImage(integerIntersectionBasisList(lattices)));
         end if;
         return self:-picardIndex;
     end proc;
