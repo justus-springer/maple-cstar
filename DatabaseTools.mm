@@ -207,7 +207,7 @@ performOnDatabase := proc(db, tableName :: string, f, step := 1000)
     numberOfSteps := ceil(numberOfEntries / step);
     for i from 1 to numberOfSteps do 
         offset := (i - 1) * step;
-        Xs := ImportComplexityOneVarietyList(Prepare(db, cat("SELECT * FROM ", tableName, " LIMIT ", step, " OFFSET ", offset)));
+        Xs := ImportFromDatabase(Prepare(db, cat("SELECT * FROM ", tableName, " LIMIT ", step, " OFFSET ", offset)));
         for j from 1 to nops(Xs) do
             f(Xs[j], offset + j);
         end do;
