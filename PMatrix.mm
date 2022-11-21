@@ -482,7 +482,7 @@ module PMatrix()
         # Now read off the degree matrix from `U`.
         setDegreeMatrixFree(self, IntegerRelations[LLL](DeleteRow(U_, [seq(1 .. ColumnDimension(S_))])));
         degreeMatrixTorsion := Matrix(nops(classGroup) - 1, self:-n + self:-m,
-            [seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + 1), list)), i = 1 .. nops(classGroup) - 1)]);
+            [seq(map(x -> x mod classGroup[i+1], :-convert(Row(U_, ColumnDimension(S_) - (nops(classGroup) - 1) + i), list)), i = 1 .. nops(classGroup) - 1)]);
         setDegreeMatrix(self, Matrix(self:-classGroupRank + nops(classGroup) - 1, self:-n + self:-m, [[self:-degreeMatrixFree],[degreeMatrixTorsion]]));
     end;
 
