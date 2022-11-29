@@ -10,6 +10,7 @@ export
 
     # Tools
     swapCase,
+    platonicityType,
     canonicalBasisVector,
     applyPermToList,
     invariantPermutations,

@@ -70,6 +70,10 @@ module PMatrix()
     export maximumSlopes := undefined;
     export minimumSlopes := undefined;
 
+    # The indices of the columns with maximal resp. minimal slopes in each block
+    export maximumSlopesIndices := undefined;
+    export minimumSlopesIndices := undefined;
+
     # The sum of maximum slopes resp. negative sum of minimum slopes
     export mplus := undefined;
     export mminus := undefined;
@@ -80,6 +84,11 @@ module PMatrix()
     export mplusInt := undefined;
     export mminusInt := undefined;
 
+    # The sum of the reciprocal maximal resp. minimal slopes minus (r-1)
+    # cf. Def 6.5 in "Log del pezzo surfaces with torus action"
+    export lplus := undefined;
+    export lminus := undefined;
+
     export betasPlus := undefined;
     export sortedBetasPlus := undefined;
     export betasMinus := undefined;
@@ -87,6 +96,21 @@ module PMatrix()
 
     # The orientation of the P-Matrix. It is either +1, -1 or 0.
     export orientation := undefined;
+
+    # Says whether this is a P-Matrix of a log-terminal K*-surface
+    # TODO: Generalize to arbitrary dimension?
+    export isLogTerminalVal := undefined;
+
+    # The singularity type of the P-Matrix in the notation of the paper
+    # "del pezzo surfaces of picard number one admitting a torus action".
+    # We use the letters A, D and E for log-terminal singularities as well
+    # as X as a placeholder for a non log-terminal one. In total, there can
+    # be 15 possible values for this field, depending on the case:
+    # 
+    #   eAeA, eAeD, eAeE, eAeX, eDeD, eDeE, eDeX, eEeE, eEeX, eXeX,
+    #                      eAp, eDp, eEp, eXp,
+    #                              pp
+    export singularityType := undefined;
 
     local setFormat :: static := proc(self :: PMatrix, f :: PFormat)
         self:-format := f;
@@ -106,12 +130,16 @@ module PMatrix()
         self:-slopes := Array(0..self:-r, [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
+        self:-maximumSlopesIndices := map(max[index], self:-slopes);
+        self:-minimumSlopesIndices := map(min[index], self:-slopes);
         self:-maximumSlopesInt := map(floor, self:-maximumSlopes);
         self:-minimumSlopesInt := map(ceil, self:-minimumSlopes);
         self:-mplus := add(self:-maximumSlopes);
         self:-mminus := -add(self:-minimumSlopes);
         self:-mplusInt := add(map(floor, self:-maximumSlopes));
         self:-mminusInt := -add(map(ceil, self:-minimumSlopes));
+        self:-lplus := add([seq(1 / self:-lss[i][self:-maximumSlopesIndices[i]], i = 0 .. self:-r)]) - self:-r + 1;
+        self:-lminus := add([seq(1 / self:-lss[i][self:-minimumSlopesIndices[i]], i = 0 .. self:-r)]) - self:-r + 1;
         self:-betasPlus := Array(0..self:-r, [seq([seq(self:-slopes[i][j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-sortedBetasPlus := sortLex(self:-betasPlus);
         self:-betasMinus := Array(0..self:-r, [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
@@ -461,6 +489,10 @@ module PMatrix()
     
     export setIsIrredundantVal :: static := proc(self :: PMatrix, isIrredundantVal :: boolean) self:-isIrredundantVal := isIrredundantVal; end proc;
 
+    export setIsLogTerminalVal :: static := proc(self :: PMatrix, isLogTerminalVal :: boolean) self:-isLogTerminalVal := isLogTerminalVal; end proc;
+
+    export setSingularityType :: static := proc(self :: PMatrix, singularityType :: string) self:-singularityType := singularityType; end proc;
+
     (*
     Compute the smith normal form of the transpose of the matrix.
     From this we can read off the degree matrix.
@@ -615,6 +647,48 @@ module PMatrix()
             setIsIrredundantVal(P, evalb(P:-r = 1 or redundantIndices = []));
         end if;
         return P:-isIrredundantVal;        
+    end proc;
+
+    export isLogTerminal :: static := proc(P :: PMatrix)
+        if P:-s <> 1 then
+            error "Log terminality is currently only implemented for the surface case.";
+        end if;
+
+        if type(P:-isLogTerminalVal, undefined) or 'forceCompute' in [_passed] then
+            if P:-case = "EE" then
+                setIsLogTerminalVal(P, P:-lplus > 0 and P:-lminus > 0);
+            elif P:-case = "EP" then
+                setIsLogTerminalVal(P, evalb(P:-lplus > 0));
+            elif P:-case = "PE" then
+                setIsLogTerminalVal(P, evalb(P:-lminus > 0));
+            elif P:-case = "PP" then
+                setIsLogTerminalVal(P, true);
+            end if;
+        end if;
+        return P:-isLogTerminalVal;
+    end proc;
+
+    export getSingularityType :: static := proc(P :: PMatrix)
+        local lsPlus, lsMinus, singTypes;
+        if P:-s <> 1 or isToric(P) then
+            error "Singularity types are currently only implemented for non-toric K^*-surfaces.";
+        end if;
+
+        if type(P:-singularityType, undefined) or 'forceCompute' in [_passed] then
+            lsPlus := [seq(P:-lss[i][P:-maximumSlopesIndices[i]], i = 0 .. P:-r)];
+            lsMinus := [seq(P:-lss[i][P:-minimumSlopesIndices[i]], i = 0 .. P:-r)];
+            if P:-case = "EE" then
+                singTypes := sort([platonicityType(lsPlus), platonicityType(lsMinus)]);
+                setSingularityType(P, cat("e", singTypes[1], "e", singTypes[2]));
+            elif P:-case = "EP" then
+                setSingularityType(P, cat("e", platonicityType(lsPlus), "p"));
+            elif P:-case = "PE" then
+                setSingularityType(P, cat("e", platonicityType(lsMinus), "p"));
+            elif P:-case = "PP" then
+                setSingularityType(P, "pp");
+            end if;
+        end if;
+        return P:-singularityType;
     end proc;
 
     export applyAdmissibleOperation :: static := proc(P :: PMatrix, a :: AdmissibleOperation)

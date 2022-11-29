@@ -16,6 +16,27 @@ swapCase := proc(c :: string)
     end if;
 end proc;
 
+# Given a list of integers, returns one of the four strings "A", "D", "E" and "X"
+platonicityType := proc(ls)
+    local sortedLs, x, y, z;
+    sortedLs := sort(ls, `>`);
+    if not andmap(l -> l = 1, sortedLs[4 .. nops(sortedLs)]) then
+        return "X";
+    end if;
+    x,y,z := sortedLs[1], sortedLs[2], sortedLs[3];
+    if z = 1 then
+        return "A";
+    end if;
+    if y = 2 and z = 2 then
+        return "D";
+    end if;
+    if y = 3 and z = 2 then
+        return "E";
+    else
+        return "X";
+    end if;
+end proc;
+
 (*
 Returns the `i`-th canonical basis vector e_i in `n` dimensional space.
 Here, the zeroth basis vector is understood to be -(e_1 + ... + e_r)
