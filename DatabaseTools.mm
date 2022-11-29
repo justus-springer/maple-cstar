@@ -8,7 +8,7 @@ Creates a SQLite database for storing K*-surfaces with a given filepath
 CreateDatabase := proc(filePath :: string, tableName :: string)
     local db;
     db := Open(filePath);
-    Execute(db, cat("CREATE TABLE ", tableName, "(r, ns, n, m, s, lss, P, dimension, classGroupRank, classGroup, degreeMatrix, canonicalDivisorClass, ambientFan, maximalXCones, gorensteinIndex, isGorenstein, orderedLss, effectiveCone, movingCone, ampleCone, isFano, variables, monomials, relations, intersectionMatrix, anticanonicalSelfIntersectionFraction, anticanonicalSelfIntersectionFloat, isToric, isIrredundant, isQfactorial, isFactorial, localPicardIndices, picardIndex, isQgorenstein, localGorensteinIndices, localGorensteinQuotients, gorensteinQuotient, case_, orientation);"));
+    Execute(db, cat("CREATE TABLE ", tableName, "(r, ns, n, m, s, lss, P, dimension, classGroupRank, classGroup, degreeMatrix, canonicalDivisorClass, ambientFan, maximalXCones, gorensteinIndex, isGorenstein, orderedLss, effectiveCone, movingCone, ampleCone, isFano, variables, monomials, relations, intersectionMatrix, anticanonicalSelfIntersectionFraction, anticanonicalSelfIntersectionFloat, isToric, isIrredundant, isQfactorial, isFactorial, localPicardIndices, picardIndex, isQgorenstein, localGorensteinIndices, localGorensteinQuotients, gorensteinQuotient, case_, orientation, isLogTerminal, singularityType);"));
     return db;
 end proc;
 
@@ -82,7 +82,7 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
         # Can be disabled by the 'noChecks' option
         if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = [] then
             P := X:-P;
-            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
             Bind(stmt, 2, convert(convert(P:-ns, list), string), valuetype = "text");
             Bind(stmt, 3, P:-n, valuetype = "integer");
@@ -122,6 +122,8 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
             Bind(stmt, 37, getGorensteinQuotient(X), valuetype = "integer");
             Bind(stmt, 38, X:-P:-case, valuetype = "text");
             Bind(stmt, 39, X:-P:-orientation, valuetype = "integer");
+            Bind(stmt, 40, isLogTerminal(X:-P), valuetype = "integer");
+            Bind(stmt, 41, getSingularityType(X:-P), valuetype = "text");
 
             Step(stmt);
             Finalize(stmt);
@@ -189,6 +191,8 @@ UpdateInDatabase := proc(connection, tableName :: string, rowid :: integer, X ::
         "gorensteinQuotient = ", getGorensteinQuotient(X), ", ",
         "case_ = \"", P:-case, "\", ",
         "orientation = ", P:-orientation, " ",
+        "isLogTerminal = ", if isLogTerminal(P) then 1 else 0 end if,
+        "singularityType = \"", getSingularityType(P), "\" "
         "WHERE rowid = ", rowid
         );
     Execute(db, stmt);
