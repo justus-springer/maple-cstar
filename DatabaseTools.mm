@@ -82,7 +82,8 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
         # Can be disabled by the 'noChecks' option
         if 'noChecks' in [_passed] or FindInDatabase(connection, tableName, X) = [] then
             P := X:-P;
-            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"));
+            numberOfColumns := if isToric(P) then 41 else 42 end if;
+            stmt := Prepare(connection, cat("INSERT INTO ", tableName ," VALUES (", cat("?," $ numberOfColumns - 1), "?)"));
             Bind(stmt, 1, P:-r, valuetype = "integer");
             Bind(stmt, 2, convert(convert(P:-ns, list), string), valuetype = "text");
             Bind(stmt, 3, P:-n, valuetype = "integer");
@@ -123,7 +124,9 @@ ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityO
             Bind(stmt, 38, X:-P:-case, valuetype = "text");
             Bind(stmt, 39, X:-P:-orientation, valuetype = "integer");
             Bind(stmt, 40, isLogTerminal(X:-P), valuetype = "integer");
-            Bind(stmt, 41, getSingularityType(X:-P), valuetype = "text");
+            if not isToric(P) then
+                Bind(stmt, 41, getSingularityType(X:-P), valuetype = "text");
+            end if;
 
             Step(stmt);
             Finalize(stmt);
