@@ -122,7 +122,7 @@ module ComplexityOneVariety()
 
     *)
     export ModuleCopy :: static := proc(self :: ComplexityOneVariety, proto :: ComplexityOneVariety, P :: PMatrix)
-        local numColumns, i, j, k, Sigma, ordered_indices, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A, vplus_index, vminus_index;
+        local numColumns, i, j, k, Sigma, taus, sigma_plus, sigma_minus, taus_plus, taus_minus, w, candidates, minimalBunchCones, cone, A, vplus_index, vminus_index;
 
         self:-P := P;
 
@@ -209,25 +209,21 @@ module ComplexityOneVariety()
                 # possible fan for the P-Matrix. We can write it down explicitly, following Construction 5.4.1.6 of "Cox Rings".
                 # Note that we do not require the P-Matrix to be slope-ordered.
                 
-                ordered_indices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
-                    (j1, j2) -> P:-slopes[i][j1] > P:-slopes[i][j2]), 
-                    i = 0 .. P:-r)]);
-                
-                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i][1]), i = 0 .. P:-r)};
-                sigma_minus := {seq(doubleToSingleIndex(P:-format, i, ordered_indices[i][P:-ns[i]]) , i = 0 .. P:-r)};
+                sigma_plus := {seq(doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][1]), i = 0 .. P:-r)};
+                sigma_minus := {seq(doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][P:-ns[i]]) , i = 0 .. P:-r)};
                 
                 taus := {seq(seq({
-                    doubleToSingleIndex(P:-format, i, ordered_indices[i][j]), 
-                    doubleToSingleIndex(P:-format, i, ordered_indices[i][j+1])}, 
+                    doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][j]), 
+                    doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][j+1])}, 
                     j = 1 .. P:-ns[i] - 1), i = 0 .. P:-r)};
                 
                 if P:-case = "EE" then
                     self:-Sigma := {sigma_plus} union taus union {sigma_minus};
                 elif P:-case = "PE" then
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][1]), P:-n + 1} , i = 0 .. P:-r)};
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][1]), P:-n + 1} , i = 0 .. P:-r)};
                     self:-Sigma := taus_plus union taus union {sigma_minus};
                 elif P:-case = "EP" then
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][P:-ns[i]]), P:-n + 1} , i = 0 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][P:-ns[i]]), P:-n + 1} , i = 0 .. P:-r)};
                     self:-Sigma := {sigma_plus} union taus union taus_minus;
                 elif P:-case = "PP" then
                     if P:-d[1, P:-n + 1] = 1 then
@@ -237,8 +233,8 @@ module ComplexityOneVariety()
                         vplus_index := P:-n + 2;
                         vminus_index := P:-n + 1;
                     end if;
-                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][1]), vplus_index} , i = 0 .. P:-r)};
-                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, ordered_indices[i][P:-ns[i]]), vminus_index} , i = 0 .. P:-r)};
+                    taus_plus := {seq({doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][1]), vplus_index} , i = 0 .. P:-r)};
+                    taus_minus := {seq({doubleToSingleIndex(P:-format, i, P:-slopeOrderedIndices[i][P:-ns[i]]), vminus_index} , i = 0 .. P:-r)};
                     self:-Sigma := taus_plus union taus union taus_minus;
                 end if;
 
@@ -436,7 +432,7 @@ module ComplexityOneVariety()
     export setintersectionMatrix :: static := proc(self :: ComplexityOneVariety, intersectionMatrix :: Array) self:-intersectionMatrix := intersectionMatrix; end proc;
 
     export getintersectionMatrix :: static := proc(X :: ComplexityOneVariety)   
-        local P, res, ordered_indices, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
+        local P, res, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
 
         if type(X:-intersectionMatrix, undefined) or 'forceCompute' in [_passed] then
             P := X:-P;
@@ -446,10 +442,10 @@ module ComplexityOneVariety()
 
             # We use the formulas of Chapter 6 in the paper: "Log del pezzo surfaces with torus action" by Hättig, Hausen, Hummel
             # Note however that we do not require P to be slope-ordered, hence we have to generalize the formulas
-            # a bit by translating the indices through the `ordered_indices` array.
+            # a bit by translating the indices through the `P:-slopeOrderedIndices` array.
 
             res := Array(1 .. P:-numCols, 1 .. P:-numCols, fill = 0);
-            ordered_indices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
+            P:-slopeOrderedIndices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
                         (j1, j2) -> P:-slopes[i][j1] > P:-slopes[i][j2]), 
                         i = 0 .. P:-r)]);
             
@@ -469,7 +465,7 @@ module ComplexityOneVariety()
                 end if;
 
                 for j from 1 to P:-ns[i] - 1 do
-                    mcal[i][j] := 1 / (P:-slopes[i][ordered_indices[i][j]] - P:-slopes[i][ordered_indices[i][j+1]]);
+                    mcal[i][j] := 1 / (P:-slopes[i][P:-slopeOrderedIndices[i][j]] - P:-slopes[i][P:-slopeOrderedIndices[i][j+1]]);
                 end do;
             end do;
 
@@ -477,8 +473,8 @@ module ComplexityOneVariety()
             # This is independent of the case of P
             for i from 0 to P:-r do
                 for j_ from 1 to P:-ns[i] - 1 do
-                    j1 := ordered_indices[i][j_];
-                    j2 := ordered_indices[i][j_+1];
+                    j1 := P:-slopeOrderedIndices[i][j_];
+                    j2 := P:-slopeOrderedIndices[i][j_+1];
                     k1 := doubleToSingleIndex(P:-format, i, j1);
                     k2 := doubleToSingleIndex(P:-format, i, j2);
                     res[k1,k2] := 1 / (P:-lss[i][j1] * P:-lss[i][j2]) * mcal[i][j_];
@@ -490,7 +486,7 @@ module ComplexityOneVariety()
             # This is independent of the case of P
             for i from 0 to P:-r do
                 for j_ from 1 to P:-ns[i] do
-                    j := ordered_indices[i][j_];
+                    j := P:-slopeOrderedIndices[i][j_];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,k] := - 1 / P:-lss[i][j]^2 * (mcal[i][j_ - 1] + mcal[i][j_]);
                 end do;
@@ -504,8 +500,8 @@ module ComplexityOneVariety()
                 # Intersection numbers of the highest rays in each block with each other.
                 for i1 from 0 to P:-r do
                     for i2 in {seq(0 .. P:-r)} minus {i1} do
-                        j1 := ordered_indices[i1][1];
-                        j2 := ordered_indices[i2][1];
+                        j1 := P:-slopeOrderedIndices[i1][1];
+                        j2 := P:-slopeOrderedIndices[i2][1];
                         k1 := doubleToSingleIndex(P:-format, i1, j1);
                         k2 := doubleToSingleIndex(P:-format, i2, j2);
                         if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
@@ -529,7 +525,7 @@ module ComplexityOneVariety()
 
                 # Intersection numbers of the highest rays of each block with D^+
                 for i from 0 to P:-r do
-                    j := ordered_indices[i][1];
+                    j := P:-slopeOrderedIndices[i][1];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,kplus] := 1 / P:-lss[i][j];
                     res[kplus,k] := res[k,kplus];
@@ -548,8 +544,8 @@ module ComplexityOneVariety()
                 # Intersection numbers of the lowest rays in each block with each other.
                 for i1 from 0 to P:-r do
                     for i2 in {seq(0 .. P:-r)} minus {i1} do
-                        j1 := ordered_indices[i1][P:-ns[i1]];
-                        j2 := ordered_indices[i2][P:-ns[i2]];
+                        j1 := P:-slopeOrderedIndices[i1][P:-ns[i1]];
+                        j2 := P:-slopeOrderedIndices[i2][P:-ns[i2]];
                         k1 := doubleToSingleIndex(P:-format, i1, j1);
                         k2 := doubleToSingleIndex(P:-format, i2, j2);
                         if P:-ns[i1] = 1 and P:-ns[i2] = 1 then
@@ -573,7 +569,7 @@ module ComplexityOneVariety()
 
                 # Intersection numbers of the highest rays of each block with D^-
                 for i from 0 to P:-r do
-                    j := ordered_indices[i][P:-ns[i]];
+                    j := P:-slopeOrderedIndices[i][P:-ns[i]];
                     k := doubleToSingleIndex(P:-format, i, j);
                     res[k,kminus] := 1 / P:-lss[i][j];
                     res[kminus,k] := res[k,kminus];

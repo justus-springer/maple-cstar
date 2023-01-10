@@ -66,6 +66,10 @@ module PMatrix()
     # same indexing as in the `lss`.
     export slopes := undefined;
 
+    # Array of the indices for the columns of P (double index notation), such
+    # that the corresponding slopes are ordered decreasingly
+    export slopeOrderedIndices := undefined;
+
     # The maximum resp. minimum slopes in each block
     export maximumSlopes := undefined;
     export minimumSlopes := undefined;
@@ -93,6 +97,10 @@ module PMatrix()
     export sortedBetasPlus := undefined;
     export betasMinus := undefined;
     export sortedBetasMinus := undefined;
+
+    # A representation of the anticanonical complex for K*-surfaces
+    # It is represented by a list of triangles, given by the coordinates of their vertices
+    export anticanonicalComplex := undefined;
 
     # The orientation of the P-Matrix. It is either +1, -1 or 0.
     export orientation := undefined;
@@ -128,6 +136,9 @@ module PMatrix()
     local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss)
         local i, j;
         self:-slopes := Array(0..self:-r, [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
+        self:-slopeOrderedIndices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
+            (j1, j2) -> P:-slopes[i][j1] > P:-slopes[i][j2]), 
+            i = 0 .. P:-r)]);
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
         self:-maximumSlopesIndices := map(max[index], self:-slopes);
@@ -489,6 +500,8 @@ module PMatrix()
     
     export setIsIrredundantVal :: static := proc(self :: PMatrix, isIrredundantVal :: boolean) self:-isIrredundantVal := isIrredundantVal; end proc;
 
+    export setAnticanonicalComplex :: static := proc(self :: PMatrix, anticanonicalComplex :: list) self:-anticanonicalComplex := anticanonicalComplex; end proc;
+
     export setIsLogTerminalVal :: static := proc(self :: PMatrix, isLogTerminalVal :: boolean) self:-isLogTerminalVal := isLogTerminalVal; end proc;
 
     export setSingularityType :: static := proc(self :: PMatrix, singularityType :: string) self:-singularityType := singularityType; end proc;
@@ -647,6 +660,14 @@ module PMatrix()
             setIsIrredundantVal(P, evalb(P:-r = 1 or redundantIndices = []));
         end if;
         return P:-isIrredundantVal;        
+    end proc;
+
+    export getAnticanonicalComplex :: static := proc(P :: PMatrix)
+        if type(P:-anticanonicalComplex, undefined) or 'forceCompute' in [_passed] then
+            triangles := [];
+
+        end if;
+        return P:-anticanonicalComplex;
     end proc;
 
     export isLogTerminal :: static := proc(P :: PMatrix)
