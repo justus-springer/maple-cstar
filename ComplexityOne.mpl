@@ -16,6 +16,7 @@ export
     invariantPermutations,
     sortLexComparison,
     sortLex,
+    intersectLines2D,
     imageFactorGroup,
     indexOfImage,
     dualHermiteForm,

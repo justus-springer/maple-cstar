@@ -93,14 +93,49 @@ module PMatrix()
     export lplus := undefined;
     export lminus := undefined;
 
+    # The quotients mplus / lplus and mminus / lminus respectively
+    export dplus := undefined;
+    export dminus := undefined;
+
+    # If the P-Matrix has a parabolic fixed point curve above (case (e-e) or (e-p)),
+    # then dplustilde is defined to be 1. Otherwise, it is set to be equal to dplus.
+    # Analogously for dminustilde.
+    export dplustilde := undefined;
+    export dminustilde := undefined;
+
     export betasPlus := undefined;
     export sortedBetasPlus := undefined;
     export betasMinus := undefined;
     export sortedBetasMinus := undefined;
 
-    # A representation of the anticanonical complex for K*-surfaces
-    # It is represented by a list of triangles, given by the coordinates of their vertices
-    export anticanonicalComplex := undefined;
+    # An array of the exceptional divisors in the resolution of singularities.
+    # Here, an exceptional divisor is represented by the primitive generator of its
+    # associated ray in the lattice. Moreover, the block structure of the P-Matrix
+    # allows us to view these as two-dimensional vectors (projecting onto the leaves).
+    #
+    # The exceptional divisors are ordered according to block structure of P:
+    # They are given by an array with indices from 0 to r + 2, where the indices
+    # from 0 to r correspond to the blocks of P and the last two entries are reserved
+    # for the possible rays [0,...,0,1] and [0,...,0,-1] coming from the tropical
+    # resolution. Each entry in the big array is again an array with indices from
+    # 0 to ns[i], corresponding to the ns[i] + 1 two-dimensional cones of the i-th leaf
+    # connecting the source with the sink, ordered decreasingly by slope. Finally, the
+    # entries of the inner arrays are lists of integral 2-vectors, which are essentially
+    # the hilbert bases of the associated cones.
+    export exceptionalDivisors := undefined;
+
+    # An array of the discrepancies in the resolution of singularities.
+    # The discrepancies are in 1-to-1 correspondence with the exceptional divisors and
+    # follow the same ordering principle explained for `exceptionalDivisors`.
+    export discrepancies := undefined;
+
+    # The maximal number epsilon, such that the variety associated to the P-Matrix
+    # is epsilon-log canonical. This is equal to the minimal discrepancy plus one.
+    export maximalLogCanonicity := undefined;
+
+    # The minimal positive integer `k` such that the variety associated to the P-Matrix
+    # is 1/k-log canonical. This is equal to ceil(1 / maximalLogCanonicity).
+    export maximalUnitFractionLogCanonicity := undefined;
 
     # The orientation of the P-Matrix. It is either +1, -1 or 0.
     export orientation := undefined;
@@ -136,9 +171,9 @@ module PMatrix()
     local setSurfaceData :: static := proc(self :: PMatrix, d :: Matrix, lss)
         local i, j;
         self:-slopes := Array(0..self:-r, [seq([seq(d[1,doubleToSingleIndex(self:-format, i, j)] / lss[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
-        self:-slopeOrderedIndices := Array(0..P:-r, [seq(sort([seq(1 .. P:-ns[i])], 
-            (j1, j2) -> P:-slopes[i][j1] > P:-slopes[i][j2]), 
-            i = 0 .. P:-r)]);
+        self:-slopeOrderedIndices := Array(0..self:-r, [seq(sort([seq(1 .. self:-ns[i])], 
+            (j1, j2) -> self:-slopes[i][j1] > self:-slopes[i][j2]), 
+            i = 0 .. self:-r)]);
         self:-maximumSlopes := map(max, self:-slopes);
         self:-minimumSlopes := map(min, self:-slopes);
         self:-maximumSlopesIndices := map(max[index], self:-slopes);
@@ -151,6 +186,8 @@ module PMatrix()
         self:-mminusInt := -add(map(ceil, self:-minimumSlopes));
         self:-lplus := add([seq(1 / self:-lss[i][self:-maximumSlopesIndices[i]], i = 0 .. self:-r)]) - self:-r + 1;
         self:-lminus := add([seq(1 / self:-lss[i][self:-minimumSlopesIndices[i]], i = 0 .. self:-r)]) - self:-r + 1;
+        self:-dplus := abs(self:-mplus / self:-lplus);
+        self:-dminus := abs(self:-mminus / self:-lminus);
         self:-betasPlus := Array(0..self:-r, [seq([seq(self:-slopes[i][j] - floor(self:-maximumSlopes[i]), j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
         self:-sortedBetasPlus := sortLex(self:-betasPlus);
         self:-betasMinus := Array(0..self:-r, [seq([seq(ceil(self:-minimumSlopes[i]) - self:-slopes[i][j], j = 1 .. self:-ns[i])], i = 0 .. self:-r)]);
@@ -189,7 +226,10 @@ module PMatrix()
         elif self:-case = "EP" then
             self:-orientation := -1;
         end if;
-        
+
+        self:-dplustilde := if self:-case in ["EE", "EP"] then self:-dplus else 1 end if;
+        self:-dminustilde := if self:-case in ["EE", "PE"] then self:-dminus else 1 end if;
+
     end proc;
 
     # Check if all columns of P are primitive
@@ -506,6 +546,14 @@ module PMatrix()
 
     export setSingularityType :: static := proc(self :: PMatrix, singularityType :: string) self:-singularityType := singularityType; end proc;
 
+    export setExceptionalDivisors :: static := proc(self :: PMatrix, exceptionalDivisors :: Array) self:-exceptionalDivisors := exceptionalDivisors; end proc;
+
+    export setDiscrepancies :: static := proc(self :: PMatrix, discrepancies :: Array) self:-discrepancies := discrepancies; end proc;
+
+    export setMaximalLogCanonicity :: static := proc(self :: PMatrix, maximalLogCanonicity :: rational) self:-maximalLogCanonicity := maximalLogCanonicity; end proc;
+
+    export setMaximalUnitFractionLogCanonicity :: static := proc(self :: PMatrix, maximalUnitFractionLogCanonicity :: integer) self:-maximalUnitFractionLogCanonicity := maximalUnitFractionLogCanonicity; end proc;
+
     (*
     Compute the smith normal form of the transpose of the matrix.
     From this we can read off the degree matrix.
@@ -662,12 +710,126 @@ module PMatrix()
         return P:-isIrredundantVal;        
     end proc;
 
-    export getAnticanonicalComplex :: static := proc(P :: PMatrix)
-        if type(P:-anticanonicalComplex, undefined) or 'forceCompute' in [_passed] then
-            triangles := [];
+    local computeExceptionalDivisorsAndDiscrepancies :: static := proc(P :: PMatrix)
 
+        local vplustilde, vminustilde, jmax, highestRay, jmin, lowestRay, j, j1, j2, v1, v2;
+
+        if P:-s <> 1 then
+            error "Currently this method is only implemented for surfaces, i.e. s = 1";
         end if;
-        return P:-anticanonicalComplex;
+
+        # set upt arrays of correct format, see the explanation at the field `exceptionalDivisors`
+        P:-exceptionalDivisors := Array(0 .. P:-r + 2, [seq(Array(0 .. P:-ns[i]), i = 0 .. P:-r), Array(1 .. 1), Array(1 .. 1)]);
+        P:-discrepancies := Array(0 .. P:-r + 2, [seq(Array(0 .. P:-ns[i]), i = 0 .. P:-r), Array(1 .. 1), Array(1 .. 1)]);
+
+
+        vplustilde := <0, P:-dplustilde>;
+        vminustilde := <0, - P:-dminustilde>;
+
+        for i from 0 to P:-r do
+            sg := if i = 0 then -1 else 1 end if;
+            
+            # Compute the hilbert basis and discrepancies of the cone connecting the highest
+            # ray in this block with `vplustilde`
+            jmax := P:-slopeOrderedIndices[i][1];
+            highestRay := <sg * P:-lss[i][jmax], P:-d[1, doubleToSingleIndex(P:-format, i, jmax)]>;
+            P:-exceptionalDivisors[i][0] := hilbertBasisCone2D(<highestRay | <0, 1>>);
+            P:-discrepancies[i][0] := map(v -> getSingleDiscrepancy(highestRay, vplustilde, v), P:-exceptionalDivisors[i][0]); 
+
+            # Compute the hilbert basis and discrepancies of the cone connecting the lowest
+            # ray in this block with `vminustilde`
+            jmin := P:-slopeOrderedIndices[i][P:-ns[i]];
+            lowestRay := <sg * P:-lss[i][jmin], P:-d[1, doubleToSingleIndex(P:-format, i, jmin)]>;
+            P:-exceptionalDivisors[i][P:-ns[i]] := hilbertBasisCone2D(<lowestRay | <0, -1>>);
+            P:-discrepancies[i][P:-ns[i]] := map(v -> getSingleDiscrepancy(lowestRay, vminustilde, v), P:-exceptionalDivisors[i][P:-ns[i]]);
+
+            # No go through the other cones in this block.
+            for j from 1 to P:-ns[i] - 1 do
+                j1 := P:-slopeOrderedIndices[i][j];
+                j2 := P:-slopeOrderedIndices[i][j+1];
+                v1 := <sg * P:-lss[i][j1], P:-d[1, doubleToSingleIndex(P:-format, i, j1)]>;
+                v2 := <sg * P:-lss[i][j2], P:-d[1, doubleToSingleIndex(P:-format, i, j2)]>;
+                P:-exceptionalDivisors[i][j] := hilbertBasisCone2D(<v1 | v2>);
+                P:-discrepancies[i][j] := map(v -> getSingleDiscrepancy(v1, v2, v), P:-exceptionalDivisors[i][j]);
+            end do;
+
+        end do;
+
+        if P:-case in ["EE", "EP"] then
+            P:-exceptionalDivisors[P:-r + 1][1] := [<0, 1>];
+            P:-discrepancies[P:-r + 1][1] := [1 / P:-dplus - 1];
+        else
+            P:-exceptionalDivisors[P:-r + 1][1] := [];
+            P:-discrepancies[P:-r + 1][1] := [];
+        end if;
+
+        if P:-case in ["EE", "PE"] then
+            P:-exceptionalDivisors[P:-r + 2][1] := [<0, -1>];
+            P:-discrepancies[P:-r + 2][1] := [1 / P:-dminus - 1];
+        else
+            P:-exceptionalDivisors[P:-r + 2][1] := [];
+            P:-discrepancies[P:-r + 2][1] := [];
+        end if;
+
+    end proc;
+
+    export getExceptionalDivisors :: static := proc(P :: PMatrix)
+
+        if type(P:-exceptionalDivisors, undefined) or 'forceCompute' in [_passed] then
+            computeExceptionalDivisorsAndDiscrepancies(P);
+        end if;
+
+        return P:-exceptionalDivisors;
+
+    end proc;
+
+    export getDiscrepancies :: static := proc(P :: PMatrix)
+
+        if type(P:-discrepancies, undefined) or 'forceCompute' in [_passed] then
+            computeExceptionalDivisorsAndDiscrepancies(P);
+        end if;
+
+        return P:-discrepancies;
+
+    end proc;
+
+    export getMaximalLogCanonicity :: static := proc(P :: PMatrix)
+        local as;
+
+        if type(P:-maximalLogCanonicity, undefined) or 'forceCompute' in [_passed] then
+            as := map(op, map(op, map(a -> :-convert(a, list), :-convert(getDiscrepancies(P), list))));
+            setMaximalLogCanonicity(P, if nops(as) = 0 then 1 else min(as) + 1 end if);
+        end if;
+
+        return P:-maximalLogCanonicity
+    end proc;
+
+    export isEpsilonLogTerminal :: static := proc(P :: PMatrix, eps)
+
+        if isToric(P) then
+            return isAlmostEpsHollow(:-convert(Transpose(P:-mat), list, nested), eps);
+        else
+
+            vplus := [0, P:-dplustilde];
+            vminus := [0, - P:-dminustilde];
+
+            for i from 0 to P:-r do
+                vs := [vplus, vminus, seq([P:-lss[i][j], P:-d[1, doubleToSingleIndex(P:-format, i, j)]], j = 1 .. P:-ns[i])];
+                if not isAlmostEpsHollow(vs, eps) then
+                    return false;
+                end if;
+            end do;
+
+            return true;
+        end if;
+
+    end proc;
+
+    export getMaximalUnitFractionLogCanonicity :: static := proc(P :: PMatrix)
+        if type(P:-maximalUnitFractionLogCanonicity, undefined) or 'forceCompute' in [_passed] then
+            setMaximalUnitFractionLogCanonicity(P, ceil(1 / getMaximalLogCanonicity(P)));
+        end if;
+        return P:-maximalUnitFractionLogCanonicity;
     end proc;
 
     export isLogTerminal :: static := proc(P :: PMatrix)
