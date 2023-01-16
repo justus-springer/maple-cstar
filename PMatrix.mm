@@ -798,7 +798,7 @@ module PMatrix()
 
         if type(P:-maximalLogCanonicity, undefined) or 'forceCompute' in [_passed] then
             as := map(op, map(op, map(a -> :-convert(a, list), :-convert(getDiscrepancies(P), list))));
-            setMaximalLogCanonicity(P, if nops(as) = 0 then 1 else min(as) + 1 end if);
+            setMaximalLogCanonicity(P, min(1, min(as) + 1));
         end if;
 
         return P:-maximalLogCanonicity
