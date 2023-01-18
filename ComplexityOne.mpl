@@ -17,6 +17,8 @@ export
     sortLexComparison,
     sortLex,
     intersectLines2D,
+    hilbertBasisCone2D,
+    getSingleDiscrepancy,
     imageFactorGroup,
     indexOfImage,
     dualHermiteForm,
