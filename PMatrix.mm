@@ -712,7 +712,7 @@ module PMatrix()
 
     local computeExceptionalDivisorsAndDiscrepancies :: static := proc(P :: PMatrix)
 
-        local vplustilde, vminustilde, jmax, highestRay, jmin, lowestRay, j, j1, j2, v1, v2;
+        local vplustilde, vminustilde, jmax, highestRay, jmin, lowestRay, j, j1, j2, v1, v2, i, sg;
 
         if P:-s <> 1 then
             error "Currently this method is only implemented for surfaces, i.e. s = 1";
@@ -805,6 +805,8 @@ module PMatrix()
     end proc;
 
     export isEpsilonLogTerminal :: static := proc(P :: PMatrix, eps)
+    
+        local vplus, vminus, i, vs, j;
 
         if isToric(P) then
             return isAlmostEpsHollow(:-convert(Transpose(P:-mat), list, nested), eps);
@@ -852,7 +854,7 @@ module PMatrix()
     end proc;
 
     export getSingularityType :: static := proc(P :: PMatrix)
-        local lsPlus, lsMinus, singTypes;
+        local lsPlus, lsMinus, singTypes, i;
         if P:-s <> 1 or isToric(P) then
             error "Singularity types are currently only implemented for non-toric K^*-surfaces.";
         end if;

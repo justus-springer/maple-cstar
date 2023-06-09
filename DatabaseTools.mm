@@ -72,7 +72,7 @@ Given a list of varieties of complexity one `Xs` and a SQLite database connectio
 inserts those K*-surfaces from `Xs` into the database that are not already present.
 *)
 ExportToDatabase := proc(connection, tableName :: string, Xs :: list(ComplexityOneVariety))
-    local k, X, P, stmt, i, knownCount;
+    local k, X, P, stmt, i, knownCount, numberOfColumns;
     knownCount := 0;
 
     for k from 1 to nops(Xs) do

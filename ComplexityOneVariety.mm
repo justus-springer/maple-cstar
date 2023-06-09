@@ -312,7 +312,7 @@ module ComplexityOneVariety()
     end proc;
 
     export getPicardIndex :: static := proc(self :: ComplexityOneVariety)
-        local P, Q, cones, clsGroup, localPicardGroups, picardGroup, factGrp;
+        local P, Q, cones, clsGroup, localPicardGroups, picardGroup, factGrp, r, numTorsion, torsionColumns, lattices;
         
         if type(self:-picardIndex, undefined) or 'forceCompute' in [_passed] then
             # The picard index is the index of the picard group in the class group.

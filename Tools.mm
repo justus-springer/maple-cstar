@@ -112,6 +112,7 @@ end proc;
 # For a polytope in two-dimensional space given by a list of vertices,
 # check whether the origin is the only interior lattice point.
 isAlmostEpsHollow := proc(vs, eps)
+    local minX, maxX, minY, maxY, po, x, y;
     minX := min(map(v -> v[1], vs));
     maxX := max(map(v -> v[1], vs));
     minY := min(map(v -> v[2], vs));
@@ -135,6 +136,7 @@ end proc;
 
 
 getSingleDiscrepancy := proc(a, b, v)
+    local w;
     w := intersectLines2D(a, b, 0, v);
     (if w[2] = 0 then v[1] / w[1] else v[2] / w[2] end if) - 1; 
 end proc;
@@ -238,6 +240,7 @@ end proc;
 # An additional argument specifying the output is also supported
 # (same as in LinearAlgebra:-HermiteForm).
 dualHermiteForm := proc(A :: Matrix)
+    local res;
     res := HermiteForm(Transpose(A), _passed[2.._npassed]);
     if type(res, list) then
         return map(Transpose, res);
@@ -255,6 +258,7 @@ end proc;
 # of the intersection of the two sublattices.
 # For performance reasons, the output is automatically put into hermite form.
 integerIntersectionBasis := proc(A1 :: Matrix, A2 :: Matrix)
+    local K, B2;
     K := integerKernel(<A1 | -A2>);
     B2 := DeleteRow(K, [1..ColumnDimension(A1)]);
     return A2 . B2;

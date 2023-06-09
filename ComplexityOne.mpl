@@ -25,6 +25,9 @@ export
     integerKernel,
     integerIntersectionBasis,
     integerIntersectionBasisList,
+    isAlmostEpsHollow,
+    cone2DNormalForm,
+    hirzebruchJungContinuedFraction,
     
     # Database stuff
     CreateDatabase,
