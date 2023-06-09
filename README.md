@@ -41,15 +41,26 @@ In particular, note that you cak automatically asign a custom value to
 `libname` at startup by editing **[Maple's initialization
 file](https://www.maplesoft.com/support/help/Maple/view.aspx?path=worksheet%2freference%2finitialization)** (For instance, you can add a custom path where you can put all your user-added libraries).
 
-Alternatively, you can also download the source code of this repository. Starting a Maple session in the directory where the code is, you can run
+Alternatively, you can use the following commands to download the source code from this repository and read it directly into maple: 
+
+```
+git clone https://github.com/justus-springer/complexity-one
+cd complexity-one
+maple
+```
+
+Now, from within maple, run
 
 ```
 read "ComplexityOne.mpl";
 ```
 
-to read in the source code of the package and start using it immediately.
-
 ## Usage
 
-Type `with(ComplexityOnePackage);` into a maple prompt to make the procedures of the package available. 
+To start using the package, both the convex package and this package must be loaded:
+
+```
+with(convex);
+with(ComplexityOnePackage);
+```
 
