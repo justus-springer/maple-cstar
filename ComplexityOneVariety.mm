@@ -429,9 +429,9 @@ module ComplexityOneVariety()
         return self:-isFanoVal
     end proc;
 
-    export setintersectionMatrix :: static := proc(self :: ComplexityOneVariety, intersectionMatrix :: Array) self:-intersectionMatrix := intersectionMatrix; end proc;
+    export setIntersectionMatrix :: static := proc(self :: ComplexityOneVariety, intersectionMatrix :: Array) self:-intersectionMatrix := intersectionMatrix; end proc;
 
-    export getintersectionMatrix :: static := proc(X :: ComplexityOneVariety)   
+    export getIntersectionMatrix :: static := proc(X :: ComplexityOneVariety)   
         local P, res, i, mcal, newM, j, j_, j1, j2, k1, k2, k, i1, i2, kplus, kminus;
 
         if type(X:-intersectionMatrix, undefined) or 'forceCompute' in [_passed] then
@@ -581,7 +581,7 @@ module ComplexityOneVariety()
 
             end if;
 
-            setintersectionMatrix(X, res);
+            setIntersectionMatrix(X, res);
         
         end if;
 
@@ -601,7 +601,7 @@ module ComplexityOneVariety()
             error "The list of integers encoding the divisor must have length n + m = %1", X:-P:-n + X:-P:-m;
         end if;
 
-        return add([seq(seq(D1[k1] * D2[k2] * getintersectionMatrix(X)[k1,k2], k2 = 1 .. nops(D2)), k1 = 1 .. nops(D1))]);
+        return add([seq(seq(D1[k1] * D2[k2] * getIntersectionMatrix(X)[k1,k2], k2 = 1 .. nops(D2)), k1 = 1 .. nops(D1))]);
 
     end proc;
 
@@ -820,10 +820,10 @@ module ComplexityOneVariety()
     export minimalResolution :: static := proc(X0 :: ComplexityOneVariety)
         local X, P, contractibleIndices;
         X := canonicalResolution(X0);
-        contractibleIndices := select(i -> getintersectionMatrix(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
+        contractibleIndices := select(i -> getIntersectionMatrix(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         while contractibleIndices <> [] do
             X := ComplexityOneVariety(PMatrix(1, DeleteColumn(X:-P:-mat, contractibleIndices)));
-            contractibleIndices := select(i -> getintersectionMatrix(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
+            contractibleIndices := select(i -> getIntersectionMatrix(X)[i,i] = -1, X:-exceptionalDivisorsIndices);
         end do;
         return X;
     end proc;
@@ -850,7 +850,7 @@ module ComplexityOneVariety()
         print(isFano = ComplexityOneVariety[isFano](self));
         print(gorensteinIndex = getGorensteinIndex(self));
         if self:-P:-s = 1 then
-            print(intersectionMatrix = getintersectionMatrix(self));
+            print(intersectionMatrix = getIntersectionMatrix(self));
             print(anticanonicalSelfIntersection = getAnticanonicalSelfIntersection(self));
         end if;
     end;
