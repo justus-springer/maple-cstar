@@ -25,7 +25,7 @@ background on C*-surfaces and the isomorphy problem, consult for instance
   complexity-one varieties,
 - For C*-surfaces: Efficient computation of a normal form for the defining data,
 - For C*-surfaces: Computation of intersection numbers and anticanonical
-  self-intersection.
+  self-intersection, test for log terminality, determining the singularity type, computing a resolution of singularities.
 
 ## Installation
 
@@ -55,12 +55,55 @@ Now, from within maple, run
 read "ComplexityOne.mpl";
 ```
 
-## Usage
+## Quick start
 
-To start using the package, both the convex package and this package must be loaded:
+Below is a very brief quick start guide. For more information, see the file **[tutorial.txt](https://github.com/justus-springer/complexity-one/blob/main/tutorial.txt)**
+in this repository as well as the documentation in the source code.
+
+First, load `convex` and `ComplexityOnePackage`.
 
 ```
 with(convex);
 with(ComplexityOnePackage);
 ```
 
+Define a Complexity-one variety from a P-Matrix (in this case, a C*-surface)
+
+```
+P := PMatrix(1, <-1, -5, 2, 0; -1, -5, 0, 2; 0, -6, 1, 1>);
+X := ComplexityOneVariety(P);
+```
+
+Some invariants are immediately accessible from `P` and `X`:
+
+```
+P:-dim;
+P:-classGroupRank;
+P:-case;
+X:-Sigma;
+```
+
+Others can be computed (and are then cached) from various `get` functions:
+
+```
+getClassGroup(P);
+getCanonicalDivisorClass(P);
+isLogTerminal(P);
+getSingularityType(P);
+isQfactorial(X);
+isQgorenstein(X);
+isGorenstein(X);
+isFano(X);
+getGorensteinIndex(X);
+getPicardIndex(X);
+getIntersectionMatrix(X);
+getAnticanonicalSelfIntersection(X);
+```
+
+Getting a minimal resolution of singularities and checking that it is factorial:
+
+```
+Xres := minimalResolution(X);
+isFactorial(Xres);
+Xres:-P:-mat;
+```
