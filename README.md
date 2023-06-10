@@ -7,8 +7,7 @@ two-dimensional case (C*-surfaces). It makes use of the **[convex package](https
 ## Mathematical background
 
 This software package is based on a combinatorial approach to complexity one
-varieties that is described in **[Huggenberger's thesis]
-(https://publikationen.uni-tuebingen.de/xmlui/handle/10900/49921)**.
+varieties that is described in **[Huggenberger's thesis](https://publikationen.uni-tuebingen.de/xmlui/handle/10900/49921)**.
 Another reference is Chapter 1.5 of **[Nicolussi's
 thesis](https://publikationen.uni-tuebingen.de/xmlui/handle/10900/77235)**. For
 background on C*-surfaces and the isomorphy problem, consult for instance
