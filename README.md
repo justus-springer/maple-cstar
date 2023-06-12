@@ -6,12 +6,30 @@ two-dimensional case (C*-surfaces). It makes use of the **[convex package](https
 
 ## Mathematical background
 
-This software package is based on a combinatorial approach to complexity one
-varieties that is described in **[Huggenberger's thesis](https://publikationen.uni-tuebingen.de/xmlui/handle/10900/49921)**.
-Another reference is Chapter 1.5 of **[Nicolussi's
-thesis](https://publikationen.uni-tuebingen.de/xmlui/handle/10900/77235)**. For
-background on C*-surfaces and the isomorphy problem, consult for instance
-**[arxiv:2302.03095](https://arxiv.org/abs/2302.03095)**.
+
+The approach to C*-surfaces relies on the general combinatorial
+theory of varieties with finitely generated Cox ring developed
+in [2,3] and its spefication to varieties with torus action
+initiated in [4,5]. As an introductory reference, we mention [1].
+
+[1] Arzhantsev, Ivan; Derenthal, Ulrich; Hausen, Jürgen; Laface, Antonio 
+Cox rings. Cambridge Studies in Advanced Mathematics, 144. Cambridge 
+University Press, Cambridge, 2015. viii+530 pp. ISBN: 978-1-107-02462-5
+
+[2] Berchtold, Florian; Hausen, Jürgen Cox rings and combinatorics. 
+Trans. Amer. Math. Soc. 359 (2007), no. 3, 1205–1252.
+
+[3] Hausen, Jürgen Cox rings and combinatorics. II. Mosc. Math. J. 8 
+(2008), no. 4, 711–757, 847.
+
+[4] Hausen, Jürgen; Herppich, Elaine Factorially graded
+rings of complexity one. Torsors, étale homotopy and
+applications to rational points, 414–428, London Math. Soc.
+Lecture Note Ser., 405, Cambridge Univ. Press, Cambridge, 2013.
+
+[4] Hausen, Jürgen; Süß, Hendrik The Cox ring of an algebraic
+variety with torus action. Adv. Math. 225 (2010), no. 2, 977–1012.
+
 
 ## Features
 
