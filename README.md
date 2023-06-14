@@ -1,11 +1,12 @@
-# complexity-one
+# maple-cstar
 
-A **[Maple](https://www.maplesoft.com/products/maple/)** package for rational
-T-Varieties with a torus action of complexity one. A special emphasis is on the
-two-dimensional case (C*-surfaces). It makes use of the **[convex package](https://www.math.uwo.ca/faculty/franz/convex/)** by Matthias Franz.
+A **[Maple(https://www.maplesoft.com/products/maple/)** package for
+computations with rational C*-surfaces. Some functionality also works for the
+more genenral case of comlexity-one varieties. This package makes use of the
+**[convex package](https://www.math.uwo.ca/faculty/franz/convex/)** by Matthias
+Franz.
 
 ## Mathematical background
-
 
 The approach to C*-surfaces relies on the general combinatorial
 theory of varieties with finitely generated Cox ring developed
@@ -37,10 +38,8 @@ variety with torus action. Adv. Math. 225 (2010), no. 2, 977–1012.
   moving cone and ample cone of divisor classes,
 - Tests for being Fano, Q-Factorial and Q-Gorenstein, computation of Gorenstein
   Index and Picard Index,
-- Tests for whether or not two sets of defining data describe isomorphic
-  complexity-one varieties,
-- For C*-surfaces: Efficient computation of a normal form for the defining data,
-- For C*-surfaces: Computation of intersection numbers and anticanonical
+- Isomorphy test, computation of normal form for the defining data,
+- Computation of intersection numbers and anticanonical
   self-intersection, test for log terminality, determining the singularity type, computing a resolution of singularities.
 
 ## Installation
