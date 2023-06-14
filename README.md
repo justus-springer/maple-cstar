@@ -1,6 +1,6 @@
 # maple-cstar
 
-A **[Maple(https://www.maplesoft.com/products/maple/)** package for
+A **[Maple](https://www.maplesoft.com/products/maple/)** package for
 computations with rational C*-surfaces. Some functionality also works for the
 more genenral case of comlexity-one varieties. This package makes use of the
 **[convex package](https://www.math.uwo.ca/faculty/franz/convex/)** by Matthias
