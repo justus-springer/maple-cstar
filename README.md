@@ -59,8 +59,8 @@ file](https://www.maplesoft.com/support/help/Maple/view.aspx?path=worksheet%2fre
 Alternatively, you can use the following commands to download the source code from this repository and read it directly into maple: 
 
 ```
-git clone https://github.com/justus-springer/complexity-one
-cd complexity-one
+git clone https://github.com/justus-springer/maple-cstar
+cd maple-cstar
 maple
 ```
 
