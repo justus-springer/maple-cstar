@@ -52,6 +52,10 @@ module PMatrix()
     # to get an irredundant PMatrix equivalent to the original one.
     local isIrredundantVal := undefined;
 
+    # says whether a variety having P as its PMatrix is an intrinsic quadric.
+    # This means the Cox Ring has given by a single quadratic equation.
+    local isIntrinsicQuadricVal := undefined;
+
     ###########################################################################
     ## These fields are only defined for P-Matrices of surfaces, i.e. s = 1. ##
     ## All of them are computed when the P-Matrix is created.                ##
@@ -540,6 +544,8 @@ module PMatrix()
     
     export setIsIrredundantVal :: static := proc(self :: PMatrix, isIrredundantVal :: boolean) self:-isIrredundantVal := isIrredundantVal; end proc;
 
+    export setIsIntrinsicQuadricVal :: static := proc(self :: PMatrix, isIntrinsicQuadricVal :: boolean) self:-isIntrinsicQuadricVal := isIntrinsicQuadricVal; end proc;
+
     export setAnticanonicalComplex :: static := proc(self :: PMatrix, anticanonicalComplex :: list) self:-anticanonicalComplex := anticanonicalComplex; end proc;
 
     export setIsLogTerminalVal :: static := proc(self :: PMatrix, isLogTerminalVal :: boolean) self:-isLogTerminalVal := isLogTerminalVal; end proc;
@@ -708,6 +714,13 @@ module PMatrix()
             setIsIrredundantVal(P, evalb(P:-r = 1 or redundantIndices = []));
         end if;
         return P:-isIrredundantVal;        
+    end proc;
+    
+    export isIntrinsicQuadric :: static := proc(P :: PMatrix)
+        if type(P:-isIntrinsicQuadricVal, undefined) or 'forceCompute' in [_passed] then
+            setIsIntrinsicQuadricVal(P, P:-r = 2 and andmap(ls -> add(ls) = 2, P:-lss));
+        end if;
+        return P:-isIntrinsicQuadricVal;
     end proc;
 
     local computeExceptionalDivisorsAndDiscrepancies :: static := proc(P :: PMatrix)
